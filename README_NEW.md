@@ -75,7 +75,7 @@ The current SIH prototype uses **deterministic demonstration/mock prediction dat
 
 ## 📁 Main Routes
 
-`/login` · `/dashboard` · `/projects` · `/projects/[id]` · `/map` · `/alerts` · `/analytics` · `/reports` · `/data` · `/settings` · `/admin/model`
+`/login` · `/dashboard` · `/projects` · `/projects/[id]` · `/map` · `/alerts` · `/analytics` · `/reports` · `/data` · `/admin/model`
 
 ## 🔐 Demo Accounts
 
@@ -99,6 +99,7 @@ Create `.env.local`:
 
 ```env
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_browser_key
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_oauth_web_client_id
 DATABASE_URL=your_database_url
 NEXTAUTH_SECRET=your_auth_secret
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -124,7 +125,7 @@ Open `http://localhost:3000`.
 
 ## 🧪 Prototype Status
 
-The prototype demonstrates the complete product workflow: dashboard, projects, risk scoring, explanations, recommendations, prioritization, alerts, GIS visualization, analytics, reports, data/settings views, and core API routes.
+The prototype demonstrates the complete product workflow: dashboard, projects, risk scoring, explanations, recommendations, prioritization, alerts, GIS visualization, analytics, reports, data management, and core API routes.
 
 It is intentionally transparent about prototype data. Real government data integration, trained/validated ML, secure authentication, production monitoring, and enterprise governance are production-roadmap items.
 

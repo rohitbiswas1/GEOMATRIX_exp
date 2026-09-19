@@ -1,1 +1,5 @@
-import {NextResponse} from 'next/server';import {projects} from '../../../../lib/data';export async function GET(){return NextResponse.json({data:projects})}
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  return NextResponse.json({ data: [], message: 'No real project map data is available yet.' }, { status: 200 });
+}

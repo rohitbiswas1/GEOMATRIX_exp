@@ -1,1 +1,5 @@
-import {NextResponse} from 'next/server';import {stages} from '../../../../lib/data';export async function GET(){return NextResponse.json({data:stages.map((stage,i)=>({stage,risk:[18,43,92,76,58,62,71][i]}))})}
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  return NextResponse.json({ data: [], message: 'Stage analytics require real project records in the database.' }, { status: 200 });
+}
