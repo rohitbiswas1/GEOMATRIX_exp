@@ -10,7 +10,13 @@ from routers.map import router as map_router
 from routers.ml import router as ml_router
 from routers.projects import router as projects_router
 
-app = FastAPI(title="Geomatrix v2")
+app = FastAPI(
+    title="Geomatrix v2",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,7 +35,6 @@ app.include_router(ml_router)
 
 init_db()
 
-
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "service": "geomatrix-api"}
