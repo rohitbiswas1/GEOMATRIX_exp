@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def _require_runtime_training_enabled() -> None:
-    if os.getenv("ALLOW_RUNTIME_TRAINING", "false").strip().lower() != "true":
+    if os.getenv("APP_ENV", "development").lower() == "production" and os.getenv("ALLOW_RUNTIME_TRAINING", "false").strip().lower() != "true":
         raise HTTPException(
             403,
             "Runtime model training is disabled. Train and validate the approved model offline, then deploy the model artifact.",
