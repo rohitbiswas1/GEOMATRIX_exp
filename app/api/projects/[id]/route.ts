@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000';
+function backendUrl(): string {
+  const url = (process.env.MODEL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '').trim();
+  if (!url) throw new Error('Backend API is not configured. Set MODEL_API_URL.');
+  return url.replace(/\/+$/, '');
+}
 
 async function readJsonPayload(res: Response) {
   const text = await res.text();
@@ -20,7 +24,7 @@ export async function GET(_: NextRequest, context: { params: Promise<{ id: strin
       return NextResponse.json({ error: 'Missing project ID' }, { status: 400 });
     }
 
-    const upstream = await fetch(`${BACKEND}/api/projects/${encodeURIComponent(id)}`, {
+    const upstream = await fetch(`${backendUrl()}/api/projects/${encodeURIComponent(id)}`, {
       headers: { Accept: 'application/json' },
       cache: 'no-store',
     });
@@ -44,7 +48,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
     const id = resolvedParams?.id;
     const body = await req.json().catch(() => ({}));
-    const upstream = await fetch(`${BACKEND}/api/projects/${encodeURIComponent(id)}`, {
+    const upstream = await fetch(`${backendUrl()}/api/projects/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -68,7 +72,7 @@ export async function DELETE(_: NextRequest, context: { params: Promise<{ id: st
   try {
     const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
     const id = resolvedParams?.id;
-    const upstream = await fetch(`${BACKEND}/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const upstream = await fetch(`${backendUrl()}/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
     if (!upstream.ok) {
       const payload = await readJsonPayload(upstream);
