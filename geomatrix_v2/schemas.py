@@ -1,13 +1,12 @@
-"""Pydantic schemas for Geomatrix v2 API."""
+"""Strict API schemas for GEOMATRIX."""
 from __future__ import annotations
 from datetime import datetime
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
 
-
-# ── Project ──────────────────────────────────────────────────────────────────
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class ProjectOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     project_code: str
     name: str
@@ -15,172 +14,124 @@ class ProjectOut(BaseModel):
     district: str
     authority: str
     project_type: str
-    description: Optional[str]
-    latitude: Optional[float]
-    longitude: Optional[float]
-    land_required: float
-    land_acquired: float
-    affected_families: int
-    current_stage: Optional[str]
-    status: Optional[str]
-
-    # Extended prediction fields
+    description: Optional[str] = None
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    land_required: float = Field(ge=0)
+    land_acquired: float = Field(ge=0)
+    affected_families: int = Field(ge=0)
+    current_stage: Optional[str] = None
+    status: Optional[str] = None
     compensation_status: Optional[str] = None
-    objection_count: Optional[int] = None
-    legal_case_count: Optional[int] = None
+    objection_count: Optional[int] = Field(default=None, ge=0)
+    legal_case_count: Optional[int] = Field(default=None, ge=0)
     rr_status: Optional[str] = None
     env_clearance_status: Optional[str] = None
     forest_clearance_status: Optional[str] = None
     crz_status: Optional[str] = None
-    doc_completeness_pct: Optional[float] = None
+    doc_completeness_pct: Optional[float] = Field(default=None, ge=0, le=100)
     approval_pending: Optional[bool] = None
-    overdue_milestones: Optional[int] = None
-
-    # ML outputs
-    risk_score: Optional[float]
-    risk_level: Optional[str]
-    delay_probability: Optional[float]
-    predicted_delay_days: Optional[int]
-    confidence: Optional[float]
-    primary_driver: Optional[str]
-
-    # Provenance
-    source_url: Optional[str]
-    source_record_id: Optional[str]
+    overdue_milestones: Optional[int] = Field(default=None, ge=0)
+    risk_score: Optional[float] = Field(default=None, ge=0, le=100)
+    risk_level: Optional[str] = None
+    delay_probability: Optional[float] = Field(default=None, ge=0, le=1)
+    predicted_delay_days: Optional[int] = Field(default=None, ge=0)
+    confidence: Optional[float] = Field(default=None, ge=0, le=1)
+    primary_driver: Optional[str] = None
+    source_url: Optional[str] = None
+    source_record_id: Optional[str] = None
     source_name: Optional[str] = None
     validation_status: Optional[str] = None
     data_classification: Optional[str] = None
-    imported_at: Optional[datetime]
-    updated_at: Optional[datetime]
-
-    model_config = {"from_attributes": True}
-
+    imported_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 class ProjectCreate(BaseModel):
-    project_code: str
-    name: str
-    state: str
-    district: str
-    authority: str
-    project_type: str
+    project_code: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=200)
+    state: str = Field(min_length=1, max_length=100)
+    district: str = Field(min_length=1, max_length=100)
+    authority: str = Field(min_length=1, max_length=200)
+    project_type: str = Field(min_length=1, max_length=100)
     description: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    land_required: float = 0.0
-    land_acquired: float = 0.0
-    affected_families: int = 0
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    land_required: Optional[float] = Field(default=None, ge=0)
+    land_acquired: Optional[float] = Field(default=None, ge=0)
+    affected_families: Optional[int] = Field(default=None, ge=0)
     current_stage: Optional[str] = None
     status: Optional[str] = None
-
-    # Extended fields for prediction
     compensation_status: Optional[str] = None
-    objection_count: Optional[int] = 0
-    legal_case_count: Optional[int] = 0
+    objection_count: Optional[int] = Field(default=None, ge=0)
+    legal_case_count: Optional[int] = Field(default=None, ge=0)
     rr_status: Optional[str] = None
     env_clearance_status: Optional[str] = None
     forest_clearance_status: Optional[str] = None
     crz_status: Optional[str] = None
-    doc_completeness_pct: Optional[float] = 50.0
-    approval_pending: Optional[bool] = False
-    overdue_milestones: Optional[int] = 0
-
-    source_url: Optional[str] = None
-    source_record_id: Optional[str] = None
-
+    doc_completeness_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    approval_pending: Optional[bool] = None
+    overdue_milestones: Optional[int] = Field(default=None, ge=0)
 
 class ProjectUpdate(BaseModel):
-    """Partial update schema — all fields optional."""
-    name: Optional[str] = None
-    state: Optional[str] = None
-    district: Optional[str] = None
-    authority: Optional[str] = None
-    project_type: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    state: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    district: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    authority: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    project_type: Optional[str] = Field(default=None, min_length=1, max_length=100)
     description: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    land_required: Optional[float] = None
-    land_acquired: Optional[float] = None
-    affected_families: Optional[int] = None
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    land_required: Optional[float] = Field(default=None, ge=0)
+    land_acquired: Optional[float] = Field(default=None, ge=0)
+    affected_families: Optional[int] = Field(default=None, ge=0)
     current_stage: Optional[str] = None
     status: Optional[str] = None
     compensation_status: Optional[str] = None
-    objection_count: Optional[int] = None
-    legal_case_count: Optional[int] = None
+    objection_count: Optional[int] = Field(default=None, ge=0)
+    legal_case_count: Optional[int] = Field(default=None, ge=0)
     rr_status: Optional[str] = None
     env_clearance_status: Optional[str] = None
     forest_clearance_status: Optional[str] = None
     crz_status: Optional[str] = None
-    doc_completeness_pct: Optional[float] = None
+    doc_completeness_pct: Optional[float] = Field(default=None, ge=0, le=100)
     approval_pending: Optional[bool] = None
-    overdue_milestones: Optional[int] = None
-
-
-# ── Alerts ────────────────────────────────────────────────────────────────────
+    overdue_milestones: Optional[int] = Field(default=None, ge=0)
 
 class AlertOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     project_id: str
     project_name: Optional[str] = None
     severity: str
     reason: str
     detected_at: datetime
-    recommended_action: Optional[str]
+    recommended_action: Optional[str] = None
     status: str
-
-    model_config = {"from_attributes": True}
-
-
-# ── ML / Prediction ───────────────────────────────────────────────────────────
-
-class PredictRequest(BaseModel):
-    project_id: str
-
 
 class ShapFeature(BaseModel):
     feature: str
     shap_value: float
-    direction: str     # "up" | "down"
+    direction: str
     description: str
-
-
-class PredictionOut(BaseModel):
-    project_id: str
-    risk_score: float
-    risk_level: str
-    delay_probability: float
-    predicted_delay_days: Optional[int]
-    confidence: float
-    shap_features: List[ShapFeature]
-    model_run_id: Optional[str]
-    predicted_at: datetime
-
-    model_config = {"protected_namespaces": ()}
-
+    display_name: Optional[str] = None
+    feature_value: Optional[float] = None
 
 class ModelStatusOut(BaseModel):
     trained: bool
-    algorithm: Optional[str]
-    trained_at: Optional[datetime]
-    n_samples: Optional[int]
-    precision: Optional[float]
-    recall: Optional[float]
-    f1_score: Optional[float]
-    roc_auc: Optional[float]
-    rmse: Optional[float]
-    feature_names: Optional[List[str]]
+    algorithm: Optional[str] = None
+    trained_at: Optional[str] = None
+    n_samples: Optional[int] = None
+    precision: Optional[float] = Field(default=None, ge=0, le=1)
+    recall: Optional[float] = Field(default=None, ge=0, le=1)
+    f1_score: Optional[float] = Field(default=None, ge=0, le=1)
+    roc_auc: Optional[float] = Field(default=None, ge=0, le=1)
+    rmse: Optional[float] = Field(default=None, ge=0)
+    accuracy: Optional[float] = Field(default=None, ge=0, le=1)
+    feature_names: Optional[List[str]] = None
+    model_version: Optional[str] = None
+    n_unique_classes: Optional[int] = None
+    class_counts: Optional[Dict[str, int]] = None
     message: str
-
-
-class TrainResponse(BaseModel):
-    success: bool
-    message: str
-    model_run_id: Optional[str] = None
-    metrics: Optional[Dict[str, Any]] = None
-
-    model_config = {"protected_namespaces": ()}
-
-
-# ── Ingestion ─────────────────────────────────────────────────────────────────
 
 class IngestResult(BaseModel):
     source: str
@@ -190,36 +141,27 @@ class IngestResult(BaseModel):
     errors: List[str]
     status: str
 
-
 class IngestionLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     source: str
-    source_url: Optional[str]
+    source_url: Optional[str] = None
     started_at: datetime
-    finished_at: Optional[datetime]
+    finished_at: Optional[datetime] = None
     records_fetched: int
     records_saved: int
     records_skipped: int
-    errors: Optional[Any]
+    errors: Optional[Any] = None
     status: str
-
-    model_config = {"from_attributes": True}
-
-
-# ── GeoJSON ───────────────────────────────────────────────────────────────────
 
 class GeoFeature(BaseModel):
     type: str = "Feature"
     geometry: Dict[str, Any]
     properties: Dict[str, Any]
 
-
 class GeoFeatureCollection(BaseModel):
     type: str = "FeatureCollection"
     features: List[GeoFeature]
-
-
-# ── Dashboard ─────────────────────────────────────────────────────────────────
 
 class DashboardSummary(BaseModel):
     total_projects: int
@@ -233,9 +175,6 @@ class DashboardSummary(BaseModel):
     alerts_open: int
     data_available: bool
     message: str
-
-
-# ── Project validation ────────────────────────────────────────────────────────
 
 class ProjectValidation(BaseModel):
     project_id: str
