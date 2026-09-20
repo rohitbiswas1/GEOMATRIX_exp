@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+function backendUrl(): string {
+  const url = (process.env.MODEL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '').trim();
+  if (!url) throw new Error('Backend API is not configured. Set MODEL_API_URL.');
+  return url.replace(/\/+$/, '');
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -8,7 +12,7 @@ export async function GET(request: Request) {
   const query = riskLevel ? `?risk_level=${riskLevel}` : '';
 
   try {
-    const res = await fetch(`${BACKEND_URL}/api/map/geojson${query}`, {
+    const res = await fetch(`${backendUrl()}/api/map/geojson${query}`, {
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
     });
