@@ -3,9 +3,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
+from ..audit import write_audit
 from ..database import get_db
 from ..models import Alert, Project, RiskPrediction
 from ..schemas import DashboardSummary, ProjectCreate, ProjectOut, ProjectUpdate, ProjectValidation
@@ -89,7 +90,7 @@ def get_project(project_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
-def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(body: ProjectCreate, request: Request, db: Session = Depends(get_db)):
     existing = db.query(Project).filter_by(project_code=body.project_code).first()
     if existing:
         raise HTTPException(409, f"Project code '{body.project_code}' already exists")
@@ -105,17 +106,37 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
         **data,
     )
     db.add(project)
+    write_audit(
+        db,
+        actor_email=getattr(request.state, "user", {}).get("email") if getattr(request.state, "user", None) else None,
+        action="CREATE",
+        entity_type="PROJECT",
+        entity_id=project.id,
+        new_value={"project_code": project.project_code, "name": project.name, "data_classification": project.data_classification},
+        request_id=getattr(request.state, "request_id", None),
+    )
+    write_audit(
+        db,
+        actor_email=getattr(request.state, "user", {}).get("email") if getattr(request.state, "user", None) else None,
+        action="UPDATE",
+        entity_type="PROJECT",
+        entity_id=project.id,
+        previous_value=previous,
+        new_value=update_data,
+        request_id=getattr(request.state, "request_id", None),
+    )
     db.commit()
     db.refresh(project)
     return project
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
-def update_project(project_id: str, body: ProjectUpdate, db: Session = Depends(get_db)):
+def update_project(project_id: str, body: ProjectUpdate, request: Request, db: Session = Depends(get_db)):
     project = db.query(Project).filter_by(id=project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
     update_data = body.model_dump(exclude_none=True)
+    previous = {field: getattr(project, field) for field in update_data}
     model_input_fields = {
         "land_required", "affected_families", "current_stage", "doc_completeness_pct",
         "objection_count", "legal_case_count", "rr_status", "approval_pending",
@@ -139,10 +160,19 @@ def update_project(project_id: str, body: ProjectUpdate, db: Session = Depends(g
 
 
 @router.delete("/{project_id}", status_code=204)
-def delete_project(project_id: str, db: Session = Depends(get_db)):
+def delete_project(project_id: str, request: Request, db: Session = Depends(get_db)):
     project = db.query(Project).filter_by(id=project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
+    write_audit(
+        db,
+        actor_email=getattr(request.state, "user", {}).get("email") if getattr(request.state, "user", None) else None,
+        action="DELETE",
+        entity_type="PROJECT",
+        entity_id=project.id,
+        previous_value={"project_code": project.project_code, "name": project.name},
+        request_id=getattr(request.state, "request_id", None),
+    )
     db.delete(project)
     db.commit()
 
@@ -166,7 +196,7 @@ def validate_project(project_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{project_id}/predict-risk")
-def predict_risk(project_id: str, db: Session = Depends(get_db)):
+def predict_risk(project_id: str, request: Request, db: Session = Depends(get_db)):
     project = db.query(Project).filter_by(id=project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
@@ -203,6 +233,15 @@ def predict_risk(project_id: str, db: Session = Depends(get_db)):
             confidence=result.get("confidence"),
             shap_values={item["feature"]: item["shap_value"] for item in shap_features},
         )
+    )
+    write_audit(
+        db,
+        actor_email=getattr(request.state, "user", {}).get("email") if getattr(request.state, "user", None) else None,
+        action="PREDICT_RISK",
+        entity_type="PROJECT",
+        entity_id=project.id,
+        new_value={"model_run_id": result.get("model_run_id"), "risk_score": result.get("risk_score"), "risk_level": result.get("risk_level")},
+        request_id=getattr(request.state, "request_id", None),
     )
     db.commit()
     return {"project_id": project_id, "prediction": {**result, "shap_features": shap_features}}
