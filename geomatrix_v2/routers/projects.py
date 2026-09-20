@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from ..audit import write_audit
 from ..database import get_db
-from ..models import Alert, Project, RiskPrediction
-from ..schemas import DashboardSummary, ProjectCreate, ProjectOut, ProjectUpdate, ProjectValidation
+from ..models import Alert, Project, ProjectAction, RiskPrediction
+from ..schemas import DashboardSummary, ProjectActionCreate, ProjectActionOut, ProjectCreate, ProjectOut, ProjectUpdate, ProjectValidation
 from ..ml.explain import explain_project
 from ..ml.features import validate_prediction_inputs
 from ..ml.predict import predict_project_risk
@@ -257,6 +257,70 @@ def get_explanation(project_id: str, db: Session = Depends(get_db)):
     if shap_features is None:
         raise HTTPException(503, "No validated model is deployed.")
     return {"project_id": project_id, "shap_features": shap_features}
+
+
+
+@router.post("/{project_id}/actions", response_model=ProjectActionOut, status_code=201)
+def create_project_action(
+    project_id: str,
+    body: ProjectActionCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter_by(id=project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    action = ProjectAction(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        action_type=body.action_type,
+        assigned_to=body.assigned_to,
+        priority=body.priority,
+        due_date=body.due_date,
+        notes=body.notes,
+        status="Open",
+        created_by=(getattr(request.state, "user", {}) or {}).get("email"),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(action)
+    write_audit(
+        db,
+        actor_email=(getattr(request.state, "user", {}) or {}).get("email"),
+        action="CREATE_ACTION",
+        entity_type="PROJECT_ACTION",
+        entity_id=action.id,
+        new_value={
+            "project_id": project_id,
+            "action_type": action.action_type,
+            "assigned_to": action.assigned_to,
+            "priority": action.priority,
+            "due_date": action.due_date.isoformat() if action.due_date else None,
+        },
+        request_id=getattr(request.state, "request_id", None),
+    )
+    db.commit()
+    db.refresh(action)
+    return action
+
+
+@router.get("/{project_id}/actions", response_model=list[ProjectActionOut])
+def list_project_actions(
+    project_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter_by(id=project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    return (
+        db.query(ProjectAction)
+        .filter_by(project_id=project_id)
+        .order_by(ProjectAction.created_at.desc())
+        .limit(limit)
+        .all()
+    )
 
 
 @router.get("/{project_id}/predictions")
