@@ -6,21 +6,17 @@
     },
     "backend": {
       "root": "geomatrix_v2/",
-      "entrypoint": "vercel_app:app"
+      "entrypoint": "main:app"
     }
   },
   "rewrites": [
     {
       "source": "/backend/:path*",
-      "destination": {
-        "service": "backend"
-      }
+      "destination": { "service": "backend" }
     },
     {
       "source": "/(.*)",
-      "destination": {
-        "service": "frontend"
-      }
+      "destination": { "service": "frontend" }
     }
   ]
 }
