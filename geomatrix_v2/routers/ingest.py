@@ -22,10 +22,6 @@ from ..schemas import IngestResult, IngestionLogOut
 router = APIRouter(prefix="/api/ingest", tags=["ingestion"])
 
 DATAGOVIN_BASE = "https://api.data.gov.in/resource"
-DATAGOVIN_RESOURCES = {
-    "land_acquisition": "9ef84268-d588-465a-a308-a864a43d0070",
-    "infrastructure": "65f7ced4-ee4c-4b96-b9f0-d01038e49099",
-}
 
 
 def _normalise(value: Any) -> str:
@@ -144,10 +140,14 @@ async def ingest_from_datagovin(
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    resource_id = DATAGOVIN_RESOURCES.get(source)
+    resource_env = {
+        "land_acquisition": "DATAGOVIN_RESOURCE_LAND_ACQUISITION",
+        "infrastructure": "DATAGOVIN_RESOURCE_INFRASTRUCTURE",
+    }.get(source)
     api_key = os.getenv("DATAGOVIN_API_KEY", "").strip()
+    resource_id = os.getenv(resource_env, "").strip() if resource_env else ""
     if not resource_id:
-        raise HTTPException(400, "Unknown data.gov.in resource.")
+        raise HTTPException(503, "The selected data.gov.in resource ID is not configured.")
     if not api_key:
         raise HTTPException(503, "DATAGOVIN_API_KEY is not configured.")
 
