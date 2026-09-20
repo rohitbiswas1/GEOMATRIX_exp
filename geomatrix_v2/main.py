@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from .database import init_db, engine, DATABASE_URL
+from .database import DATABASE_URL, engine, init_db
 from .routers.alerts import router as alerts_router
 from .routers.analytics import router as analytics_router
 from .routers.auth import router as auth_router
@@ -12,6 +13,7 @@ from .routers.ingest import router as ingest_router
 from .routers.map import router as map_router
 from .routers.ml import router as ml_router
 from .routers.projects import router as projects_router
+from .security import is_production, verify_session_token
 
 app = FastAPI(
     title="GEOMATRIX Land Acquisition Risk Intelligence API",
@@ -20,11 +22,8 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-allowed_origins = [
-    origin.strip()
-    for origin in __import__("os").getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
-    if origin.strip()
-]
+import os
+allowed_origins = [x.strip() for x in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -34,12 +33,30 @@ app.add_middleware(
 )
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=[
-        host.strip()
-        for host in __import__("os").getenv("ALLOWED_HOSTS", "*").split(",")
-        if host.strip()
-    ],
+    allowed_hosts=[x.strip() for x in os.getenv("ALLOWED_HOSTS", "*").split(",") if x.strip()],
 )
+
+PUBLIC_PATHS = {"/health", "/health/ready", "/docs", "/redoc", "/openapi.json"}
+
+@app.middleware("http")
+async def security_context(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or __import__("uuid").uuid4().hex
+    request.state.request_id = request_id
+
+    if is_production() and request.url.path.startswith("/api/") and request.url.path not in PUBLIC_PATHS:
+        session = verify_session_token(request.cookies.get("geomatrix_session"))
+        if not session:
+            return JSONResponse({"error": "Authentication required."}, status_code=401)
+        request.state.user = session
+    else:
+        request.state.user = verify_session_token(request.cookies.get("geomatrix_session"))
+
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 app.include_router(auth_router)
 app.include_router(gemini_router)
@@ -52,23 +69,9 @@ app.include_router(analytics_router)
 
 init_db()
 
-
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    import uuid
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "no-referrer"
-    return response
-
-
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "geomatrix-api", "version": app.version}
-
 
 @app.get("/health/ready")
 def readiness():
