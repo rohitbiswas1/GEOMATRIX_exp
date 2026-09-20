@@ -3,9 +3,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models import Project
-from ..schemas import GeoFeature, GeoFeatureCollection
+from database import get_db
+from models import Project
+from schemas import GeoFeature, GeoFeatureCollection
 
 router = APIRouter(prefix="/api/map", tags=["map"])
 
