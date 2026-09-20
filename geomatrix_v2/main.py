@@ -1,10 +1,17 @@
+from pathlib import Path
+import sys
+
+SERVICE_ROOT = Path(__file__).resolve().parent
+if str(SERVICE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVICE_ROOT))
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from .database import DATABASE_URL, engine, init_db
+from database import DATABASE_URL, engine, init_db
 from .routers.alerts import router as alerts_router
 from .routers.audit import router as audit_router
 from .routers.analytics import router as analytics_router
@@ -14,7 +21,7 @@ from .routers.ingest import router as ingest_router
 from .routers.map import router as map_router
 from .routers.ml import router as ml_router
 from .routers.projects import router as projects_router
-from .security import is_production, verify_session_token
+from security import is_production, verify_session_token
 
 app = FastAPI(
     title="GEOMATRIX Land Acquisition Risk Intelligence API",
