@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import {
   fetchProject, runPrediction, fetchExplanation, explainWithGemini, validateProject,
-  deleteProject, createProjectAction, ApiProject, ShapFeature, PredictionResult, ApiError
+  deleteProject, createProjectAction, fetchProjectAudit, ApiProject, ShapFeature, PredictionResult, ApiError, AuditLogEntry
 } from '../../../lib/apiClient';
 import { riskLevel, stages, type RiskLevel } from '../../../lib/risk';
 import ExportDropdown, { ExportFormat } from '../../../components/ExportDropdown';
@@ -86,6 +86,7 @@ export default function ProjectRiskIntelligence() {
   const [geminiResult, setGeminiResult] = useState('');
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiError, setGeminiError] = useState('');
+  const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
 
   const loadProject = useCallback(async () => {
     setLoadingProject(true);
@@ -93,11 +94,16 @@ export default function ProjectRiskIntelligence() {
     try {
       const data = await fetchProject(id as string);
       setP(data);
-      // Check validation
       try {
-        const v = await validateProject(id as string);
+        const [v, audit] = await Promise.all([
+          validateProject(id as string),
+          fetchProjectAudit(id as string),
+        ]);
         setMissingFields(v.missing_fields);
-      } catch { /* ignore */ }
+        setAuditEntries(audit);
+      } catch {
+        setAuditEntries([]);
+      }
     } catch (e) {
       setProjectError(e instanceof ApiError ? `Error ${e.status}: ${e.message}` : 'Failed to load project');
     } finally {
@@ -805,49 +811,37 @@ export default function ProjectRiskIntelligence() {
             <div className="panelhead">
               <div>
                 <div className="paneltitle">Complete Audit Trail</div>
-                <div className="muted">All system and officer actions for this project</div>
+                <div className="muted">Persisted project actions, predictions and record changes.</div>
               </div>
+              <span className="tag">{auditEntries.length} EVENTS</span>
             </div>
-            <div>
-              {([
-                { action: 'Project Record Ingestion', user: p.source_name || 'System Ingest', role: 'Data Governance', date: p.imported_at ? new Date(p.imported_at).toLocaleDateString('en-IN') : 'Recent', outcome: `Imported with code ${p.project_code}`, status: 'completed' },
-                { action: 'Schema & Geospatial Validation', user: 'Automated Validator', role: 'Integrity Engine', date: p.imported_at ? new Date(p.imported_at).toLocaleDateString('en-IN') : 'Recent', outcome: p.validation_status ?? 'Validated', status: 'completed' },
-                { action: 'ML Risk Assessment Surveillance', user: 'XGBoost / Random Forest Pipeline', role: 'AI Model Engine', date: p.updated_at ? new Date(p.updated_at).toLocaleDateString('en-IN') : 'Recent', outcome: riskScore != null ? `Risk Score: ${riskScore} (${rl})` : 'Prediction pending', status: riskScore != null ? 'completed' : 'in-progress' },
-              ]).map((evt, i) => (
-                <div key={i} style={{ display: 'flex', gap: 14, paddingBottom: 16, position: 'relative' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+            {auditEntries.length === 0 ? (
+              <div className="muted" style={{ padding: '20px 4px' }}>
+                No persisted audit events are available for this project.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 14 }}>
+                {auditEntries.map((evt) => (
+                  <div key={evt.id} style={{ display: 'flex', gap: 12, paddingBottom: 14, borderBottom: '1px solid var(--line)' }}>
                     <div style={{
-                      width: 30, height: 30, borderRadius: '50%', display: 'grid', placeItems: 'center',
-                      background: evt.status === 'completed' ? 'var(--green-bg)' : evt.status === 'in-progress' ? 'var(--amber-bg)' : 'var(--bg)',
-                      border: `2px solid ${evt.status === 'completed' ? 'var(--green)' : evt.status === 'in-progress' ? 'var(--amber)' : 'var(--line)'}`,
-                      color: evt.status === 'completed' ? 'var(--green)' : evt.status === 'in-progress' ? 'var(--amber-text)' : 'var(--muted)',
+                      width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center',
+                      background: 'var(--blue-light)', color: 'var(--blue)', flexShrink: 0,
                     }}>
-                      {evt.status === 'completed' ? <CheckCircle2 size={13} /> : <Clock size={13} />}
+                      <Database size={13} />
                     </div>
-                    {i < 2 && <div style={{ width: 2, flex: 1, background: 'var(--line)', marginTop: 4 }} />}
-                  </div>
-                  <div style={{ paddingTop: 4, flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 3 }}>{evt.action}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 2 }}>
-                      <User size={10} style={{ display: 'inline' }} /> {evt.user} · {evt.role}
-                    </div>
-                    <div style={{ fontSize: 12, display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <span style={{ color: 'var(--muted)' }}><Clock size={10} style={{ display: 'inline' }} /> {evt.date}</span>
-                      <span style={{ color: 'var(--ink-secondary)', fontWeight: 600 }}>{evt.outcome}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{evt.action}</div>
+                      <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+                        {evt.actor_email || 'System'} · {new Date(evt.timestamp).toLocaleString('en-IN')}
+                      </div>
+                      <div style={{ fontSize: 11, marginTop: 5, color: 'var(--ink-secondary)' }}>
+                        {evt.entity_type} · {evt.entity_id}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ flexShrink: 0 }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                      background: evt.status === 'completed' ? 'var(--green-bg)' : evt.status === 'in-progress' ? 'var(--amber-bg)' : 'var(--bg)',
-                      color: evt.status === 'completed' ? 'var(--green-text)' : evt.status === 'in-progress' ? 'var(--amber-text)' : 'var(--muted)',
-                    }}>
-                      {evt.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
