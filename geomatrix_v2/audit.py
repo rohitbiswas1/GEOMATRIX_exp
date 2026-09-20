@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 from sqlalchemy.orm import Session
-from .models import AuditLog
+from models import AuditLog
 
 def write_audit(db: Session, *, actor_email: str | None, action: str, entity_type: str, entity_id: str, previous_value: dict[str, Any] | None = None, new_value: dict[str, Any] | None = None, request_id: str | None = None) -> None:
     db.add(AuditLog(
