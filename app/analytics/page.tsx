@@ -34,9 +34,9 @@ export default function Analytics() {
     setError('');
     try {
       const [o, d, s] = await Promise.all([
-        fetch('/api/analytics/overview', { cache: 'no-store' }).then(r => r.json()),
-        fetch('/api/analytics/drivers', { cache: 'no-store' }).then(r => r.json()),
-        fetch('/api/analytics/stages', { cache: 'no-store' }).then(r => r.json()),
+        fetch('/backend/api/analytics/overview', { cache: 'no-store' }).then(r => r.json()),
+        fetch('/backend/api/analytics/drivers', { cache: 'no-store' }).then(r => r.json()),
+        fetch('/backend/api/analytics/stages', { cache: 'no-store' }).then(r => r.json()),
       ]);
       if (o?.error || d?.error || s?.error) throw new Error(o?.error || d?.error || s?.error);
       setOverview(o);
