@@ -4,8 +4,8 @@ from collections import defaultdict
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models import Alert, Project, RiskPrediction
+from database import get_db
+from models import Alert, Project, RiskPrediction
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
