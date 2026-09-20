@@ -15,9 +15,9 @@ import httpx
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models import DataIngestionLog, HistoricalDelayRecord, Project
-from ..schemas import IngestResult, IngestionLogOut
+from database import get_db
+from models import DataIngestionLog, HistoricalDelayRecord, Project
+from schemas import IngestResult, IngestionLogOut
 
 router = APIRouter(prefix="/api/ingest", tags=["ingestion"])
 
