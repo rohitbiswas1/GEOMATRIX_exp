@@ -1,0 +1,1 @@
+"""GEOMATRIX FastAPI backend package."""
