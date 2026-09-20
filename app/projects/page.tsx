@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Plus, Upload, Map as MapIcon, Search, ArrowUpDown, Filter, TrendingUp, TrendingDown, Minus, X, CheckCircle2, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { fetchProjects, createProject, uploadFile, deleteProject, ApiProject, ApiError } from '../../lib/apiClient';
-import { riskLevel } from '../../lib/data';
+import { riskLevel } from '../../lib/risk';
 import ExportDropdown, { ExportFormat } from '../../components/ExportDropdown';
 import { exportToCSV, exportToExcel, exportToPDF } from '../../lib/exportUtils';
 
