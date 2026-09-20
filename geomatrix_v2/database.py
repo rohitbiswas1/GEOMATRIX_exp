@@ -1,11 +1,7 @@
-"""Database configuration for GEOMATRIX.
-
-Production should use a managed PostgreSQL DATABASE_URL. For Vercel preview/demo
-execution, a short-lived SQLite database under /tmp keeps the API bootable when
-no database has been configured yet; it is intentionally non-persistent.
-"""
+"""Database configuration for GEOMATRIX."""
 import logging
 import os
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -14,7 +10,11 @@ from .models import Base
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SQLITE_PATH = os.path.join("/tmp", "geomatrix.db") if os.getenv("VERCEL") else os.path.join(os.path.dirname(__file__), "geomatrix.db")
+IS_VERCEL = os.getenv("VERCEL", "").lower() == "1"
+DEFAULT_SQLITE_PATH = os.getenv(
+    "GEOMATRIX_SQLITE_PATH",
+    str(Path("/tmp") / "geomatrix.db") if IS_VERCEL else str(Path(__file__).with_name("geomatrix.db")),
+)
 DEFAULT_SQLITE_URL = f"sqlite:///{DEFAULT_SQLITE_PATH}"
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip() or DEFAULT_SQLITE_URL
 
@@ -35,10 +35,11 @@ engine = _build_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db() -> None:
-    if DATABASE_URL.startswith("sqlite:///") and os.getenv("VERCEL"):
-        logger.warning("No DATABASE_URL configured on Vercel; using ephemeral /tmp SQLite. Configure PostgreSQL for persistent data.")
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database initialised.")
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database initialised using %s", "PostgreSQL" if DATABASE_URL.startswith("postgres") else "SQLite")
+    except Exception:
+        logger.exception("Database initialisation failed; API will boot but readiness will report not_ready.")
 
 def get_db():
     db = SessionLocal()
