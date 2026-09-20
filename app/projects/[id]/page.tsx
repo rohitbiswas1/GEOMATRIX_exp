@@ -16,7 +16,7 @@ import {
   fetchProject, runPrediction, fetchExplanation, explainWithGemini, validateProject,
   deleteProject, ApiProject, ShapFeature, PredictionResult, ApiError
 } from '../../../lib/apiClient';
-import { riskLevel, stages, type RiskLevel } from '../../../lib/data';
+import { riskLevel, stages, type RiskLevel } from '../../../lib/risk';
 import ExportDropdown, { ExportFormat } from '../../../components/ExportDropdown';
 import { exportToCSV, exportToExcel, exportToPDF } from '../../../lib/exportUtils';
 
@@ -229,7 +229,6 @@ export default function ProjectRiskIntelligence() {
     setTimeout(() => setToast(''), 3500);
   }
 
-  const avgAccuracy = 0; // Not available for real projects yet
 
   // Loading / Error states
   if (loadingProject) return (
@@ -248,11 +247,17 @@ export default function ProjectRiskIntelligence() {
     </div>
   );
 
-  const recs = [
-    { title: 'Resolve pending compensation claims', priority: 'Critical', impact: 'Very High', owner: 'District Land Acquisition Officer', expected: 'Reduce delay probability' },
-    { title: 'Escalate unresolved legal cases', priority: 'High', impact: 'High', owner: 'Legal Cell', expected: 'Reduce legal exposure' },
-    { title: 'Complete missing land documents', priority: 'Medium', impact: 'Moderate', owner: 'Records & Verification Team', expected: 'Improve confidence and stage throughput' },
-  ];
+  const recs = factors
+    .filter(f => f.direction === 'up')
+    .slice(0, 5)
+    .map(f => ({
+      title: `Review ${f.feature}`,
+      priority: Math.abs(f.contribution) >= 0.15 ? 'High' : 'Medium',
+      impact: 'Evidence-based review',
+      owner: 'Designated project authority',
+      expected: f.description,
+    }));
+
 
   function handleExport(format: ExportFormat) {
     if (!p) return;
@@ -640,166 +645,23 @@ export default function ProjectRiskIntelligence() {
           TAB: What-If Simulator
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'simulator' && (
-        <div className="grid two">
-          <div className="panel">
-            <div className="panelhead">
-              <div>
-                <div className="paneltitle">What-If Intervention Simulator</div>
-                <div className="muted">Adjust inputs to see how interventions change predicted risk</div>
-              </div>
-              <span className="tag">SIMULATION MODE</span>
-            </div>
+  <div className="panel">
+    <div className="panelhead">
+      <div>
+        <div className="paneltitle">What-If Simulator</div>
+        <div className="muted">Counterfactual simulation is disabled until a validated counterfactual model is deployed.</div>
+      </div>
+      <span className="tag">UNAVAILABLE</span>
+    </div>
+    <div style={{ padding: '24px 8px', lineHeight: 1.7, color: 'var(--muted)' }}>
+      The current production model provides an observed risk estimate for the supplied project state.
+      It does not provide causal intervention effects, so the application will not manufacture a simulated
+      risk score or delay-days estimate. A separately validated counterfactual model can be integrated here.
+    </div>
+  </div>
+)}
 
-            <div style={{ display: 'grid', gap: 20 }}>
-              {/* Pending Claims */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <label style={{ fontWeight: 700, fontSize: 13 }}>Pending Compensation Claims</label>
-                  <span style={{ fontWeight: 800, fontSize: 14, color: simValues.pendingClaims < baseline.pendingClaims ? 'var(--green)' : simValues.pendingClaims > baseline.pendingClaims ? 'var(--red)' : 'var(--ink)' }}>
-                    {simValues.pendingClaims} <span style={{ fontSize: 11, color: 'var(--muted)' }}>(baseline: {baseline.pendingClaims})</span>
-                  </span>
-                </div>
-                <input type="range" min={0} max={50} value={simValues.pendingClaims}
-                  onChange={e => setSimValues(v => ({ ...v, pendingClaims: +e.target.value }))}
-                  style={{ width: '100%', accentColor: 'var(--blue)' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
-                  <span>0 (none)</span><span>50 (severe backlog)</span>
-                </div>
-              </div>
-
-              {/* Legal Cases */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <label style={{ fontWeight: 700, fontSize: 13 }}>Open Legal Cases</label>
-                  <span style={{ fontWeight: 800, fontSize: 14, color: simValues.legalCases < baseline.legalCases ? 'var(--green)' : simValues.legalCases > baseline.legalCases ? 'var(--red)' : 'var(--ink)' }}>
-                    {simValues.legalCases}
-                  </span>
-                </div>
-                <input type="range" min={0} max={20} value={simValues.legalCases}
-                  onChange={e => setSimValues(v => ({ ...v, legalCases: +e.target.value }))}
-                  style={{ width: '100%', accentColor: 'var(--blue)' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
-                  <span>0</span><span>20</span>
-                </div>
-              </div>
-
-              {/* Documentation Completeness */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <label style={{ fontWeight: 700, fontSize: 13 }}>Documentation Completeness</label>
-                  <span style={{ fontWeight: 800, fontSize: 14, color: simValues.docCompleteness > baseline.docCompleteness ? 'var(--green)' : 'var(--orange)' }}>
-                    {simValues.docCompleteness}%
-                  </span>
-                </div>
-                <input type="range" min={20} max={100} value={simValues.docCompleteness}
-                  onChange={e => setSimValues(v => ({ ...v, docCompleteness: +e.target.value }))}
-                  style={{ width: '100%', accentColor: 'var(--blue)' }} />
-              </div>
-
-              {/* R&R Pending */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <label style={{ fontWeight: 700, fontSize: 13 }}>R&R Pending Families</label>
-                  <span style={{ fontWeight: 800, fontSize: 14, color: simValues.rrPending < baseline.rrPending ? 'var(--green)' : 'var(--amber)' }}>
-                    {simValues.rrPending}
-                  </span>
-                </div>
-                <input type="range" min={0} max={40} value={simValues.rrPending}
-                  onChange={e => setSimValues(v => ({ ...v, rrPending: +e.target.value }))}
-                  style={{ width: '100%', accentColor: 'var(--blue)' }} />
-              </div>
-
-              {/* Approval Pending Toggle */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--line)' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>Approval Pending</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>Statutory clearance status</div>
-                </div>
-                <button
-                  onClick={() => setSimValues(v => ({ ...v, approvalPending: !v.approvalPending }))}
-                  style={{
-                    padding: '6px 18px', borderRadius: 20, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
-                    background: simValues.approvalPending ? '#dc2626' : '#15803d', color: '#fff',
-                    transition: 'background 0.2s ease'
-                  }}
-                >
-                  {simValues.approvalPending ? 'Pending' : 'Cleared'}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button className="btn" onClick={resetSimulator} style={{ flex: 1, justifyContent: 'center' }}>
-                  Reset to Baseline
-                </button>
-                <button className="btn primary" onClick={() => act('Simulation scenario')} style={{ flex: 1, justifyContent: 'center' }}>
-                  Save Scenario
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Simulation Results */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className="panel" style={{ borderLeft: `4px solid ${simulatedRisk >= 75 ? '#dc2626' : simulatedRisk >= 50 ? '#ea580c' : simulatedRisk >= 25 ? '#d97706' : '#15803d'}` }}>
-              <div className="paneltitle" style={{ marginBottom: 16 }}>Simulation Result</div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 20, alignItems: 'center', marginBottom: 20 }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Current Risk</div>
-                  <div style={{ fontSize: 48, fontWeight: 900, color: riskColor }}>{riskScore ?? 50}</div>
-                  <RiskBadge score={riskScore ?? 50} />
-                </div>
-                <div style={{ textAlign: 'center', fontSize: 24, color: 'var(--muted)' }}>→</div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Simulated Risk</div>
-                  <div style={{ fontSize: 48, fontWeight: 900, color: RISK_COLORS[riskLevel(simulatedRisk)] }}>{simulatedRisk}</div>
-                  <RiskBadge score={simulatedRisk} />
-                </div>
-              </div>
-
-              <div style={{ textAlign: 'center', padding: '12px', borderRadius: 8, marginBottom: 16, background: simDelta < 0 ? 'rgba(21,128,91,0.08)' : simDelta > 0 ? 'rgba(220,38,38,0.08)' : 'var(--bg)', border: `1px solid ${simDelta < 0 ? 'rgba(21,128,91,0.2)' : simDelta > 0 ? 'rgba(220,38,38,0.2)' : 'var(--line)'}` }}>
-                <div style={{ fontSize: 26, fontWeight: 900, color: simDelta < 0 ? '#15803d' : simDelta > 0 ? '#dc2626' : 'var(--muted)' }}>
-                  {simDelta > 0 ? '+' : ''}{simDelta} pts risk {simDelta < 0 ? 'reduction' : simDelta > 0 ? 'increase' : 'unchanged'}
-                </div>
-                <div style={{ fontSize: 14, color: 'var(--ink-secondary)', marginTop: 4 }}>
-                  Delay-day simulation unavailable — no verified regression model is active.
-                </div>
-              </div>
-
-              {simDelta < -5 && (
-                <div style={{ padding: '12px 14px', background: 'rgba(21,128,91,0.06)', border: '1px solid rgba(21,128,91,0.2)', borderRadius: 8 }}>
-                  <div style={{ fontWeight: 800, color: '#15803d', fontSize: 13, marginBottom: 4 }}>✓ Recommended Intervention</div>
-                  <div style={{ fontSize: 13, color: 'var(--ink-secondary)', lineHeight: 1.6 }}>
-                    This scenario changes the modeled risk profile, but delay-day estimates are unavailable because no verified regression model is active.
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Scenario guidance */}
-            <div className="panel">
-              <div className="paneltitle" style={{ marginBottom: 12 }}>Simulation Guidance</div>
-              {([
-                ['Resolve all pending compensation claims', `Claims: ${baseline.pendingClaims} → 0`, 'Expected savings: 12–18 days'],
-                ['Fast-track legal dispute resolution', `Cases: ${baseline.legalCases} → 0`, 'Expected savings: 8–14 days'],
-                ['Complete documentation submission', `Doc: ${baseline.docCompleteness}% → 95%`, 'Expected savings: 5–9 days'],
-              ]).map(([title, change, impact]) => (
-                <div key={title as string} style={{ display: 'flex', gap: 12, padding: '9px 0', borderBottom: '1px solid var(--line)', alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{title as string}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{change as string} · {impact as string}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB: Interventions
-      ══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'intervention' && (
+{activeTab === 'intervention' && (
         <div>
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))', gap: 16, marginBottom: 20 }}>
             {recs.map((r, i) => (
@@ -822,48 +684,19 @@ export default function ProjectRiskIntelligence() {
             ))}
           </div>
 
-          {/* Recovery reference */}
           <div className="panel">
             <div className="panelhead">
               <div>
-                <div className="paneltitle">Recovery Precedents — Similar Projects</div>
-                <div className="muted">How comparable projects resolved their risk and recovered timelines</div>
+                <div className="paneltitle">Recovery Precedents</div>
+                <div className="muted">Only verified comparable-project records should appear here.</div>
               </div>
+              <span className="tag">NO VERIFIED DATA</span>
             </div>
-            <div className="tablewrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Similar Project</th>
-                    <th>State</th>
-                    <th>Risk Score</th>
-                    <th>Intervention Used</th>
-                    <th>Outcome</th>
-                    <th>Days Saved</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {([
-                    { name: 'Bengaluru-Mysuru Corridor', state: 'Karnataka', riskScore: 42, interventionUsed: 'Disbursed Section 30 escrow via fast-track Lok Adalat', outcome: 'Objections dropped; 88% possession achieved', delayAvoided: 45 },
-                    { name: 'Delhi-Dehradun Expressway Ph-2', state: 'Uttarakhand', riskScore: 58, interventionUsed: 'Integrated wildlife crossing clearance expediting', outcome: 'Stage II forest clearance accorded', delayAvoided: 32 },
-                    { name: 'Raipur-Visakhapatnam Package 3', state: 'Odisha', riskScore: 35, interventionUsed: 'Joint survey reconciliation with State Revenue Dept', outcome: 'All 14 title claims adjudicated', delayAvoided: 28 },
-                  ]).map(sp => (
-                    <tr key={sp.name}>
-                      <td style={{ fontWeight: 600 }}>{sp.name}</td>
-                      <td>{sp.state}</td>
-                      <td><span className={'risk ' + riskLevel(sp.riskScore).toLowerCase()}>{riskLevel(sp.riskScore)} · {sp.riskScore}</span></td>
-                      <td style={{ fontSize: 12 }}>{sp.interventionUsed}</td>
-                      <td style={{ fontSize: 12, color: 'var(--green-text)' }}>{sp.outcome}</td>
-                      <td style={{ fontWeight: 800, color: 'var(--green)' }}>▼ {sp.delayAvoided}d</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ padding: '24px 8px', color: 'var(--muted)', lineHeight: 1.7 }}>
+              No verified comparable-project outcome dataset is currently connected.
+              GEOMATRIX does not display invented project precedents, intervention outcomes or days saved.
             </div>
           </div>
-        </div>
-      )}
-
       {/* ══════════════════════════════════════════════════════════════════════
           TAB: Acquisition Pipeline
       ══════════════════════════════════════════════════════════════════════ */}
