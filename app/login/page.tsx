@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Mail, Lock, LogIn, Map, Sun, Moon, Laptop, Loader2, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, LogIn, Map, Sun, Moon, Laptop, Loader2, UserPlus } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -19,6 +19,23 @@ declare global {
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
+type DemoAccount = { name: string; email: string; password: string; role: string };
+
+const DEMO_ACCOUNTS: DemoAccount[] = [
+  {
+    name: 'Demo Administrator',
+    email: 'admin@geomatrix.demo',
+    password: 'GeoMatrix@123',
+    role: 'Administrator',
+  },
+  {
+    name: 'Demo Analyst',
+    email: 'analyst@geomatrix.demo',
+    password: 'Analyst@123',
+    role: 'Analyst',
+  },
+];
+
 export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -29,6 +46,7 @@ export default function Login() {
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('dark');
   const [hasMounted, setHasMounted] = useState(false);
   const googleButton = useRef<HTMLDivElement>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const googleInitRef = useRef(false);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim();
   const isGoogleAuthReady =
@@ -134,37 +152,66 @@ export default function Login() {
     document.head.appendChild(script);
   }, [isGoogleAuthReady, googleClientId, router, effectiveTheme]);
 
+  function pickDemo(account: DemoAccount) {
+    setEmail(account.email);
+    setPassword(account.password);
+    setError('');
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
 
-    if (!email.trim() || !password) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
       setError('Enter your email address and password.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await fetch('/backend/api/auth/login', {
+      const demo = DEMO_ACCOUNTS.find(
+        account => account.email === normalizedEmail && account.password === password
+      );
+
+      const registered = JSON.parse(
+        window.localStorage.getItem('geomatrix-demo-users') || '[]'
+      ) as Array<{ name: string; email: string; password: string }>;
+
+      const localUser = registered.find(
+        user => user.email.toLowerCase() === normalizedEmail && user.password === password
+      );
+
+      if (!demo && !localUser) {
+        throw new Error('Invalid login details. Use a demo account or register a new demo user.');
+      }
+
+      const identity = demo
+        ? { name: demo.name, email: demo.email, role: demo.role }
+        : { name: localUser!.name, email: localUser!.email, role: 'Registered Demo User' };
+
+      const response = await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(identity),
       });
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error || data.detail || 'Sign-in failed.');
+        throw new Error(data.error || 'Unable to create the login session.');
       }
 
       sessionStorage.setItem(
         'geomatrix-auth',
         JSON.stringify({
-          provider: 'password',
-          email: data.email,
-          name: data.name,
+          provider: demo ? 'demo' : 'registration',
+          email: identity.email,
+          name: identity.name,
+          role: identity.role,
           signedInAt: new Date().toISOString(),
         })
       );
+
       router.push('/dashboard');
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Sign-in failed.');
@@ -810,6 +857,31 @@ export default function Login() {
             <p>Secure access to the GEOMATRIX decision-support system</p>
           </div>
 
+          <div className="demo-chips-section">
+            <div className="demo-chips-label">
+              <span>Demo accounts</span>
+              <span>For testing only</span>
+            </div>
+            <div className="demo-chips-grid">
+              {DEMO_ACCOUNTS.map(account => (
+                <button
+                  key={account.email}
+                  type="button"
+                  className="demo-chip-btn"
+                  onClick={() => pickDemo(account)}
+                  disabled={isLoading}
+                >
+                  <span className="demo-chip-role">{account.role}</span>
+                  <span className="demo-chip-sub">{account.email}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, fontSize: 10, lineHeight: 1.5, color: 'var(--text-muted)' }}>
+              Admin: <strong>admin@geomatrix.demo</strong> / <strong>GeoMatrix@123</strong><br />
+              Analyst: <strong>analyst@geomatrix.demo</strong> / <strong>Analyst@123</strong>
+            </div>
+          </div>
+
           <form onSubmit={submit} noValidate>
             <div className="form-group">
               <div className="field-unit">
@@ -838,7 +910,7 @@ export default function Login() {
                 <div className="input-relative">
                   <input
                     id="password-input"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     className="text-input"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -847,6 +919,22 @@ export default function Login() {
                     required
                   />
                   <Lock size={16} className="input-icon" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(value => !value)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    style={{
+                      position: 'absolute',
+                      right: 12,
+                      border: 0,
+                      background: 'transparent',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: 4,
+                    }}
+                  >
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -899,6 +987,13 @@ export default function Login() {
                 <span>Continue with Google</span>
               </button>
             )}
+          </div>
+
+          <div style={{ marginTop: 16, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+            New to GEOMATRIX?{' '}
+            <a href="/register" style={{ color: '#60a5fa', fontWeight: 700, textDecoration: 'none' }}>
+              Create a demo account
+            </a>
           </div>
 
           <div className="card-footer">
