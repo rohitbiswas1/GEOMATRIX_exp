@@ -217,6 +217,37 @@ export interface GeoJsonFeatureCollection {
   }>;
 }
 
+export interface ProjectAction {
+  id: string;
+  project_id: string;
+  action_type: string;
+  assigned_to: string;
+  priority: 'Critical' | 'High' | 'Medium' | 'Low';
+  due_date?: string | null;
+  notes?: string | null;
+  status: string;
+  created_by?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export async function createProjectAction(projectId: string, data: {
+  action_type: string;
+  assigned_to: string;
+  priority: 'Critical' | 'High' | 'Medium' | 'Low';
+  due_date?: string | null;
+  notes?: string | null;
+}): Promise<ProjectAction> {
+  return apiFetch<ProjectAction>(`/api/projects/${encodeURIComponent(projectId)}/actions`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchProjectActions(projectId: string): Promise<ProjectAction[]> {
+  return apiFetch<ProjectAction[]>(`/api/projects/${encodeURIComponent(projectId)}/actions`);
+}
+
 export interface ProjectValidation {
   project_id: string;
   missing_fields: string[];
