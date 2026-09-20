@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import {
   fetchProject, runPrediction, fetchExplanation, explainWithGemini, validateProject,
-  deleteProject, ApiProject, ShapFeature, PredictionResult, ApiError
+  deleteProject, createProjectAction, ApiProject, ShapFeature, PredictionResult, ApiError
 } from '../../../lib/apiClient';
 import { riskLevel, stages, type RiskLevel } from '../../../lib/risk';
 import ExportDropdown, { ExportFormat } from '../../../components/ExportDropdown';
@@ -163,8 +163,10 @@ export default function ProjectRiskIntelligence() {
   const [modal, setModal] = useState(false);
   const [toast, setToast] = useState('');
   const [assignedTo, setAssignedTo] = useState('District Land Acquisition Officer (DLAO)');
+  const [priority, setPriority] = useState<'Critical' | 'High' | 'Medium' | 'Low'>('High');
   const [dueDate, setDueDate] = useState('');
   const [interventionNote, setInterventionNote] = useState('');
+  const [actionSaving, setActionSaving] = useState(false);
 
   // ── Derived display values ───────────────────────────────────────────────
   const riskScore = prediction?.risk_score ?? p?.risk_score;
@@ -190,10 +192,30 @@ export default function ProjectRiskIntelligence() {
   );
   const safeIdx = currentStageIdx >= 0 ? currentStageIdx : -1;
 
-  function act(label: string) {
-    setModal(false);
-    setToast(label + ' — workflow action is not persisted yet.');
-    setTimeout(() => setToast(''), 3500);
+  async function recordAction(
+    actionType: string,
+    actionPriority: 'Critical' | 'High' | 'Medium' | 'Low',
+    note?: string,
+  ) {
+    if (!p) return;
+    setActionSaving(true);
+    setPredictionError('');
+    try {
+      await createProjectAction(p.id, {
+        action_type: actionType,
+        assigned_to: assignedTo || 'Unassigned',
+        priority: actionPriority,
+        due_date: dueDate || null,
+        notes: note || interventionNote || null,
+      });
+      setModal(false);
+      setToast(`${actionType} saved to the project workflow.`);
+      setTimeout(() => setToast(''), 3500);
+    } catch (e) {
+      setProjectError(e instanceof ApiError ? e.message : 'Unable to save workflow action.');
+    } finally {
+      setActionSaving(false);
+    }
   }
 
 
@@ -644,8 +666,8 @@ export default function ProjectRiskIntelligence() {
                 </div>
                 <div className="actions">
                   <button className="btn" onClick={() => setModal(true)}>Assign Officer</button>
-                  <button className="btn" onClick={() => act('Task')}>Create Task</button>
-                  <button className="btn" onClick={() => act('Escalation')}>Escalate</button>
+                  <button className="btn" onClick={() => recordAction('Task', r.priority === 'High' ? 'High' : 'Medium', r.expected)}>Create Task</button>
+                  <button className="btn" onClick={() => recordAction('Escalation', 'Critical', r.expected)}>Escalate</button>
                 </div>
               </div>
             ))}
@@ -837,16 +859,17 @@ export default function ProjectRiskIntelligence() {
             <h3 style={{ margin: '0 0 6px', fontWeight: 800 }}>Assign Intervention</h3>
             <p className="sub" style={{ marginBottom: 18 }}>
               Record an intervention for <strong>{p.name}</strong>.
-              &nbsp;<em style={{ fontSize: 11 }}>Workflow recording requires a connected task endpoint.</em>
+              &nbsp;<em style={{ fontSize: 11 }}>This action is persisted to the project workflow and audit trail.</em>
             </p>
             <div className="form">
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>Assigned Officer / Unit</label>
               <input value={assignedTo} onChange={e => setAssignedTo(e.target.value)} />
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>Priority Level</label>
-              <select>
-                <option>Critical — Immediate action (within 24h)</option>
-                <option>High — Action within 48 hours</option>
-                <option>Medium — Action within 7 days</option>
+              <select value={priority} onChange={e => setPriority(e.target.value as 'Critical' | 'High' | 'Medium' | 'Low')}>
+                <option value="Critical">Critical — Immediate action</option>
+                <option value="High">High — Action within 48 hours</option>
+                <option value="Medium">Medium — Action within 7 days</option>
+                <option value="Low">Low — Routine follow-up</option>
               </select>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>Due Date</label>
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
@@ -854,8 +877,8 @@ export default function ProjectRiskIntelligence() {
               <textarea rows={3} value={interventionNote || `Fast-track resolution of ${p.primary_driver || 'compensation backlog'}. Convene inter-departmental review within 5 working days.`} onChange={e => setInterventionNote(e.target.value)} />
               <div className="actions" style={{ justifyContent: 'flex-end', marginTop: 6 }}>
                 <button className="btn" onClick={() => setModal(false)}>Cancel</button>
-                <button className="btn primary" onClick={() => act('Intervention')}>
-                  <CheckCircle2 size={13} /> Confirm & Record
+                <button className="btn primary" disabled={actionSaving} onClick={() => recordAction('Intervention', priority)}>
+                  <CheckCircle2 size={13} /> {actionSaving ? 'Saving…' : 'Confirm & Record'}
                 </button>
               </div>
             </div>
