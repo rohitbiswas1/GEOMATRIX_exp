@@ -148,7 +148,7 @@ export default function ProjectRiskIntelligence() {
     try {
       const res = await explainWithGemini({
         project: p as unknown as Record<string, unknown>,
-        prediction: prediction as unknown as Record<string, unknown> ?? undefined,
+        prediction: prediction ? (prediction as unknown as Record<string, unknown>) : undefined,
         shap_features: shapFeatures.length > 0 ? shapFeatures : undefined,
       });
       setGeminiResult(res.summary);
@@ -165,39 +165,6 @@ export default function ProjectRiskIntelligence() {
   const [assignedTo, setAssignedTo] = useState('District Land Acquisition Officer (DLAO)');
   const [dueDate, setDueDate] = useState('');
   const [interventionNote, setInterventionNote] = useState('');
-
-  // ── What-If Simulator state (uses real risk score as baseline if available) ──
-  const baseline = useMemo(() => ({
-    pendingClaims: p?.objection_count ?? 0,
-    legalCases: p?.legal_case_count ?? 0,
-    docCompleteness: p?.doc_completeness_pct ?? 75,
-    approvalPending: p?.approval_pending ?? false,
-    rrPending: p?.rr_status === 'Pending' ? 10 : 0,
-  }), [p]);
-
-  const [simValues, setSimValues] = useState({ pendingClaims: 0, legalCases: 0, docCompleteness: 75, approvalPending: false, rrPending: 0 });
-
-  useEffect(() => {
-    if (p) {
-      setSimValues({
-        pendingClaims: p.objection_count ?? 0,
-        legalCases: p.legal_case_count ?? 0,
-        docCompleteness: p.doc_completeness_pct ?? 75,
-        approvalPending: p.approval_pending ?? false,
-        rrPending: p.rr_status === 'Pending' ? 10 : 0,
-      });
-    }
-  }, [p]);
-
-  const simulatedRisk = useMemo(() => {
-    const base = p?.risk_score ?? 50;
-    const delta = (simValues.pendingClaims * 2.1) + (simValues.legalCases * 3.4) +
-      ((100 - simValues.docCompleteness) * 0.3) + (simValues.approvalPending ? 8 : 0) + (simValues.rrPending * 1.5);
-    return Math.min(100, Math.max(0, Math.round(base + delta)));
-  }, [simValues, p?.risk_score]);
-  const simDelta = simulatedRisk - (p?.risk_score ?? 50);
-  const simDelayDays = null;
-  function resetSimulator() { setSimValues(baseline); }
 
   // ── Derived display values ───────────────────────────────────────────────
   const riskScore = prediction?.risk_score ?? p?.risk_score;
@@ -585,11 +552,11 @@ export default function ProjectRiskIntelligence() {
             ) : (
               <div style={{ display: 'grid', gap: 12 }}>
                 {([
-                  ['Risk Score', `${prediction.risk_score.toFixed(1)} / 100`, riskColor],
+                  ['Risk Score', prediction.risk_score != null ? `${prediction.risk_score.toFixed(1)} / 100` : '—', riskColor],
                   ['Risk Level', prediction.risk_level, riskColor],
-                  ['Delay Probability', `${(prediction.delay_probability * 100).toFixed(1)}%`, 'var(--orange)'],
+                  ['Delay Probability', prediction.delay_probability != null ? `${(prediction.delay_probability * 100).toFixed(1)}%` : '—', 'var(--orange)'],
                   ['Predicted Delay', prediction.predicted_delay_days != null ? `${prediction.predicted_delay_days} days` : '—', 'var(--orange)'],
-                  ['Model Confidence', `${(prediction.confidence * 100).toFixed(0)}%`, prediction.confidence > 0.88 ? 'var(--green)' : 'var(--amber)'],
+                  ['Model Confidence', prediction.confidence != null ? `${(prediction.confidence * 100).toFixed(0)}%` : '—', prediction.confidence != null && prediction.confidence > 0.88 ? 'var(--green)' : 'var(--amber)'],
                 ] as [string, string, string][]).map(([k, v, c]) => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--line)', alignItems: 'center' }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-secondary)' }}>{k}</span>
