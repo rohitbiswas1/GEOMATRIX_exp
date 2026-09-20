@@ -115,8 +115,23 @@ def update_project(project_id: str, body: ProjectUpdate, db: Session = Depends(g
     project = db.query(Project).filter_by(id=project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    for field, value in body.model_dump(exclude_none=True).items():
+    update_data = body.model_dump(exclude_none=True)
+    model_input_fields = {
+        "land_required", "affected_families", "current_stage", "doc_completeness_pct",
+        "objection_count", "legal_case_count", "rr_status", "approval_pending",
+        "overdue_milestones", "compensation_status", "env_clearance_status",
+        "forest_clearance_status", "crz_status", "overdue_milestones",
+    }
+    for field, value in update_data.items():
         setattr(project, field, value)
+    if model_input_fields.intersection(update_data):
+        project.risk_score = None
+        project.risk_level = None
+        project.delay_probability = None
+        project.predicted_delay_days = None
+        project.confidence = None
+        project.primary_driver = None
+        project.validation_status = "pending"
     project.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(project)
