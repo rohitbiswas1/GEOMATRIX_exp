@@ -1,10 +1,16 @@
-"""SHAP explanations for the deployed validated classifier."""
+"""Lightweight model feature-contribution explanations.
+
+This runtime deliberately avoids the heavyweight SHAP package so the FastAPI
+function remains deployable on Vercel. The contribution value is the change
+in delayed-class probability when the feature is replaced by the training
+baseline (median/imputation behavior is preserved by the fitted preprocessor).
+It is model-derived evidence, not a causal effect.
+"""
 import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import shap
 
 from .features import build_feature_vector
 from .train import load_active_model
@@ -28,36 +34,58 @@ def explain_project(record: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
     artifacts = load_active_model()
     if artifacts is None:
         return None
+
     classifier, _, preprocessor, meta = artifacts
     try:
         vector = build_feature_vector(record, strict=False)
         used = list(meta["used_features"])
-        frame = pd.DataFrame([[vector.get(feature) for feature in used]], columns=used)
-        transformed = preprocessor.transform(frame)
-        explainer = shap.TreeExplainer(classifier)
-        raw = explainer.shap_values(transformed)
+        current = np.asarray(
+            [[vector.get(feature, np.nan) for feature in used]],
+            dtype=float,
+        )
+        transformed = preprocessor.transform(
+            pd.DataFrame(current, columns=used)
+        )
 
-        if isinstance(raw, list):
-            values = np.asarray(raw[1] if len(raw) > 1 else raw[0])[0]
-        else:
-            arr = np.asarray(raw)
-            values = arr[0, :, 1] if arr.ndim == 3 else arr[0]
+        classes = list(getattr(classifier, "classes_", []))
+        if 1 not in classes:
+            raise ValueError("Active classifier does not contain the delay class.")
+        delay_index = classes.index(1)
 
-        values = np.asarray(values, dtype=float)
-        collapsed = []
+        base_probability = float(classifier.predict_proba(transformed)[0, delay_index])
+        results: list[dict[str, Any]] = []
+
         for index, feature in enumerate(used):
-            shap_value = float(values[index])
-            collapsed.append({
+            test = current.copy()
+            baseline = getattr(preprocessor.named_steps["imputer"], "statistics_", np.array([]))
+            if index >= len(baseline) or np.isnan(float(baseline[index])):
+                continue
+            test[0, index] = float(baseline[index])
+            transformed_test = preprocessor.transform(
+                pd.DataFrame(test, columns=used)
+            )
+            replaced_probability = float(
+                classifier.predict_proba(transformed_test)[0, delay_index]
+            )
+            contribution = base_probability - replaced_probability
+
+            value = vector.get(feature)
+            results.append({
                 "feature": feature,
                 "display_name": feature.replace("_", " ").title(),
-                "shap_value": round(shap_value, 6),
-                "direction": "up" if shap_value > 0 else "down",
+                "shap_value": round(contribution, 6),
+                "direction": "up" if contribution > 0 else "down",
                 "description": FEATURE_DESCRIPTIONS.get(feature, feature),
-                "feature_value": None if np.isnan(float(vector.get(feature, np.nan))) else round(float(vector[feature]), 4),
+                "feature_value": (
+                    None
+                    if value is None or np.isnan(float(value))
+                    else round(float(value), 4)
+                ),
+                "explanation_method": "baseline_probability_delta",
             })
 
-        collapsed.sort(key=lambda item: abs(item["shap_value"]), reverse=True)
-        return collapsed
+        results.sort(key=lambda item: abs(item["shap_value"]), reverse=True)
+        return results
     except Exception:
-        logger.exception("SHAP explanation failed")
+        logger.exception("Feature contribution explanation failed")
         return None
