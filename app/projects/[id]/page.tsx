@@ -168,7 +168,7 @@ export default function ProjectRiskIntelligence() {
 
   // ── Derived display values ───────────────────────────────────────────────
   const riskScore = prediction?.risk_score ?? p?.risk_score;
-  const riskLevelStr = (prediction?.risk_level ?? p?.risk_level ?? (riskScore != null ? riskLevel(riskScore) : 'Low')) as RiskLevel;
+  const riskLevelStr = (prediction?.risk_level ?? p?.risk_level ?? 'Low') as RiskLevel;
   const rl = riskLevelStr;
   const riskColor = RISK_COLORS[rl];
   const riskBg = RISK_BG[rl];
@@ -188,7 +188,7 @@ export default function ProjectRiskIntelligence() {
     s.toLowerCase() === (p?.current_stage ?? '').toLowerCase() ||
     (p?.current_stage ?? '').toLowerCase().includes(s.split(' ')[0].toLowerCase())
   );
-  const safeIdx = currentStageIdx >= 0 ? currentStageIdx : 2;
+  const safeIdx = currentStageIdx >= 0 ? currentStageIdx : -1;
 
   function act(label: string) {
     setModal(false);
