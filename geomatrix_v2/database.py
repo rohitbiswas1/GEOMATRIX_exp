@@ -1,84 +1,59 @@
-"""Database session factory for Geomatrix v2 (SQLite)."""
+"""Database configuration for Geomatrix v2.
+
+Uses DATABASE_URL when provided (recommended for production), with a local
+SQLite fallback for development only.
+"""
 import os
 import logging
-from sqlalchemy import create_engine, text
+from urllib.parse import urlparse, urlunparse
+
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 from models import Base
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "geomatrix.db")
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+DEFAULT_SQLITE_PATH = os.path.join(os.path.dirname(__file__), "geomatrix.db")
+DEFAULT_SQLITE_URL = f"sqlite:///{DEFAULT_SQLITE_PATH}"
+DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_SQLITE_URL).strip()
 
 
-class _DynamicEngine:
-    """Proxy engine that follows the current DATABASE_URL value."""
-
-    def __init__(self):
-        self._engine = None
-
-    def _ensure_engine(self):
-        current_url = globals().get("DATABASE_URL", DATABASE_URL)
-        if self._engine is None:
-            self._engine = create_engine(
-                current_url,
-                connect_args={"check_same_thread": False},
-                poolclass=StaticPool,
-                echo=False,
-            )
-        elif str(self._engine.url) != current_url:
-            self._engine.dispose()
-            self._engine = create_engine(
-                current_url,
-                connect_args={"check_same_thread": False},
-                poolclass=StaticPool,
-                echo=False,
-            )
-        return self._engine
-
-    def __getattr__(self, name):
-        return getattr(self._ensure_engine(), name)
-
-    def __call__(self, *args, **kwargs):
-        return self._ensure_engine()(*args, **kwargs)
+def _normalize_database_url(url: str) -> str:
+    """Normalize common hosted-Postgres URLs for SQLAlchemy/psycopg2/psycopg3."""
+    if url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://") and urlparse(url).scheme == "postgresql":
+        return url
+    return url
 
 
-engine = _DynamicEngine()
+def _build_engine(url: str):
+    url = _normalize_database_url(url)
+    kwargs = {"echo": False, "pool_pre_ping": True}
+    if url.startswith("sqlite://"):
+        kwargs.update({
+            "connect_args": {"check_same_thread": False},
+        })
+    else:
+        kwargs.update({
+            "pool_size": int(os.getenv("DB_POOL_SIZE", "5")),
+            "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "5")),
+        })
+    return create_engine(url, **kwargs)
+
+
+engine = _build_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# New columns added in the real-data upgrade. ALTER TABLE is idempotent because
-# SQLite raises "duplicate column name" which we silently ignore.
-_MIGRATION_STATEMENTS = [
-    "ALTER TABLE projects ADD COLUMN compensation_status TEXT",
-    "ALTER TABLE projects ADD COLUMN objection_count INTEGER DEFAULT 0",
-    "ALTER TABLE projects ADD COLUMN legal_case_count INTEGER DEFAULT 0",
-    "ALTER TABLE projects ADD COLUMN rr_status TEXT",
-    "ALTER TABLE projects ADD COLUMN env_clearance_status TEXT",
-    "ALTER TABLE projects ADD COLUMN forest_clearance_status TEXT",
-    "ALTER TABLE projects ADD COLUMN crz_status TEXT",
-    "ALTER TABLE projects ADD COLUMN doc_completeness_pct REAL DEFAULT 50.0",
-    "ALTER TABLE projects ADD COLUMN approval_pending INTEGER DEFAULT 0",
-    "ALTER TABLE projects ADD COLUMN overdue_milestones INTEGER DEFAULT 0",
-]
 
+def init_db() -> None:
+    """Create missing tables.
 
-def _run_migrations():
-    """Apply schema migrations safely (idempotent)."""
-    with engine.connect() as conn:
-        for stmt in _MIGRATION_STATEMENTS:
-            try:
-                conn.execute(text(stmt))
-                conn.commit()
-            except Exception:
-                # Column already exists — safe to ignore
-                pass
-
-
-def init_db():
+    Schema migrations are handled by the application model definitions for new
+    deployments. Existing production databases should be migrated separately.
+    """
     Base.metadata.create_all(bind=engine)
-    _run_migrations()
-    logger.info("Database initialised and migrations applied.")
+    logger.info("Database initialised.")
 
 
 def get_db():
