@@ -115,16 +115,6 @@ def create_project(body: ProjectCreate, request: Request, db: Session = Depends(
         new_value={"project_code": project.project_code, "name": project.name, "data_classification": project.data_classification},
         request_id=getattr(request.state, "request_id", None),
     )
-    write_audit(
-        db,
-        actor_email=getattr(request.state, "user", {}).get("email") if getattr(request.state, "user", None) else None,
-        action="UPDATE",
-        entity_type="PROJECT",
-        entity_id=project.id,
-        previous_value=previous,
-        new_value=update_data,
-        request_id=getattr(request.state, "request_id", None),
-    )
     db.commit()
     db.refresh(project)
     return project
@@ -154,6 +144,17 @@ def update_project(project_id: str, body: ProjectUpdate, request: Request, db: S
         project.primary_driver = None
         project.validation_status = "pending"
     project.updated_at = datetime.utcnow()
+
+    write_audit(
+        db,
+        actor_email=getattr(request.state, "user", {}).get("email") if getattr(request.state, "user", None) else None,
+        action="UPDATE",
+        entity_type="PROJECT",
+        entity_id=project.id,
+        previous_value=previous,
+        new_value=update_data,
+        request_id=getattr(request.state, "request_id", None),
+    )
     db.commit()
     db.refresh(project)
     return project
