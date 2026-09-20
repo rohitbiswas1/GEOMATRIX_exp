@@ -33,5 +33,6 @@ export const config = {
     '/model/:path*',
     '/admin/:path*',
     '/api/:path*',
+    '/backend/:path*',
   ],
 };
