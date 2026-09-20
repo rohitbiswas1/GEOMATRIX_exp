@@ -6,7 +6,7 @@
 
 const BASE =
   typeof window !== 'undefined'
-    ? (process.env.NEXT_PUBLIC_API_URL || '/backend')
+    ? (process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/backend' : 'http://127.0.0.1:8000'))
     : (process.env.MODEL_API_URL || '');
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
