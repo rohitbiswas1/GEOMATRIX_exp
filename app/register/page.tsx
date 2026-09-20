@@ -309,7 +309,7 @@ export default function RegisterPage() {
           from { transform: rotate(0); }
           to { transform: rotate(360deg); }
         }
-      \`}</style>
+      `}</style>
     </main>
   );
 }
