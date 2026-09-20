@@ -107,7 +107,7 @@ def test_real_upload_training_prediction_and_shap_persisted(tmp_path, monkeypatc
 
 def test_missing_historical_label_is_rejected(tmp_path, monkeypatch):
     db_path = tmp_path / "validation.db"
-    monkeypatch.setattr("database.DATABASE_URL", f"sqlite:///{db_path}")
+    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     client = TestClient(app)
@@ -125,7 +125,7 @@ def test_missing_historical_label_is_rejected(tmp_path, monkeypatch):
 
 def test_real_railway_csv_aliases_are_accepted(tmp_path, monkeypatch):
     db_path = tmp_path / "railway_aliases.db"
-    monkeypatch.setattr("database.DATABASE_URL", f"sqlite:///{db_path}")
+    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     client = TestClient(app)
@@ -159,7 +159,7 @@ def test_real_railway_csv_aliases_are_accepted(tmp_path, monkeypatch):
 
 def test_real_project_master_csv_aliases_are_accepted(tmp_path, monkeypatch):
     db_path = tmp_path / "project_aliases.db"
-    monkeypatch.setattr("database.DATABASE_URL", f"sqlite:///{db_path}")
+    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     client = TestClient(app)
@@ -205,7 +205,7 @@ def test_user_mospi_flash_report_csv_ingestion_and_training(tmp_path, monkeypatc
     db_path = tmp_path / "user_csv.db"
     model_dir = tmp_path / "model_artifacts"
     model_dir.mkdir()
-    monkeypatch.setattr("database.DATABASE_URL", f"sqlite:///{db_path}")
+    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
     monkeypatch.setattr(train_module, "MODEL_DIR", str(model_dir))
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
