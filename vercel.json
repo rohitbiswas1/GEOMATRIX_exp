@@ -1,5 +1,9 @@
 {
   "services": {
+    "frontend": {
+      "root": "./",
+      "framework": "nextjs"
+    },
     "backend": {
       "root": "geomatrix_v2",
       "entrypoint": "vercel_app:app"
@@ -10,6 +14,12 @@
       "source": "/backend/:path*",
       "destination": {
         "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
       }
     }
   ]
