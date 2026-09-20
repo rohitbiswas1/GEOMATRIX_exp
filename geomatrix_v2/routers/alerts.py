@@ -35,3 +35,19 @@ def alerts_summary(db: Session = Depends(get_db)):
     critical = db.query(Alert).filter_by(severity="Critical", status="Open").count()
     high = db.query(Alert).filter_by(severity="High", status="Open").count()
     return {"total": total, "open": open_count, "critical": critical, "high": high}
+
+
+@router.patch("/{alert_id}")
+def update_alert(alert_id: str, payload: dict, db: Session = Depends(get_db)):
+    alert = db.query(Alert).filter_by(id=alert_id).first()
+    if not alert:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Alert not found")
+    status = payload.get("status")
+    if status not in {"Open", "Acknowledged", "Resolved"}:
+        from fastapi import HTTPException
+        raise HTTPException(400, "status must be Open, Acknowledged or Resolved")
+    alert.status = status
+    db.commit()
+    db.refresh(alert)
+    return {"id": alert.id, "status": alert.status}
