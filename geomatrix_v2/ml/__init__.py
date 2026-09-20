@@ -1,1 +1,1 @@
-"""Geomatrix v2 ML package."""
+"""GEOMATRIX machine-learning package."""
