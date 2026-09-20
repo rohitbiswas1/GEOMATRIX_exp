@@ -1,10 +1,8 @@
-"""Lightweight model feature-contribution explanations.
+"""Runtime-safe model explanations.
 
-This runtime deliberately avoids the heavyweight SHAP package so the FastAPI
-function remains deployable on Vercel. The contribution value is the change
-in delayed-class probability when the feature is replaced by the training
-baseline (median/imputation behavior is preserved by the fitted preprocessor).
-It is model-derived evidence, not a causal effect.
+Uses SHAP when it is installed. Vercel does not need the heavyweight SHAP
+package just to boot or serve predictions, so a truthful global feature-
+importance fallback is returned when SHAP is unavailable.
 """
 import logging
 from typing import Any, Dict, List, Optional
@@ -30,62 +28,71 @@ FEATURE_DESCRIPTIONS = {
     "env_clearance_pending": "Environmental, forest or CRZ clearance marked pending.",
 }
 
+def _fallback_importance(
+    classifier: Any,
+    vector: Dict[str, float],
+    used: list[str],
+) -> list[dict[str, Any]]:
+    importances = getattr(classifier, "feature_importances_", None)
+    if importances is None:
+        return []
+    values = np.asarray(importances, dtype=float).reshape(-1)
+    result = []
+    for index, feature in enumerate(used):
+        if index >= len(values):
+            break
+        result.append({
+            "feature": feature,
+            "display_name": feature.replace("_", " ").title(),
+            "shap_value": round(float(values[index]), 6),
+            "direction": "neutral",
+            "description": FEATURE_DESCRIPTIONS.get(feature, feature),
+            "feature_value": None if np.isnan(float(vector.get(feature, np.nan))) else round(float(vector[feature]), 4),
+            "explanation_method": "global_feature_importance",
+        })
+    result.sort(key=lambda item: abs(item["shap_value"]), reverse=True)
+    return result
+
 def explain_project(record: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
     artifacts = load_active_model()
     if artifacts is None:
         return None
-
     classifier, _, preprocessor, meta = artifacts
+
     try:
         vector = build_feature_vector(record, strict=False)
         used = list(meta["used_features"])
-        current = np.asarray(
-            [[vector.get(feature, np.nan) for feature in used]],
-            dtype=float,
-        )
-        transformed = preprocessor.transform(
-            pd.DataFrame(current, columns=used)
-        )
+        frame = pd.DataFrame([[vector.get(feature) for feature in used]], columns=used)
+        transformed = preprocessor.transform(frame)
 
-        classes = list(getattr(classifier, "classes_", []))
-        if 1 not in classes:
-            raise ValueError("Active classifier does not contain the delay class.")
-        delay_index = classes.index(1)
+        try:
+            import shap
+            explainer = shap.TreeExplainer(classifier)
+            raw = explainer.shap_values(transformed)
+            if isinstance(raw, list):
+                values = np.asarray(raw[1] if len(raw) > 1 else raw[0])[0]
+            else:
+                arr = np.asarray(raw)
+                values = arr[0, :, 1] if arr.ndim == 3 else arr[0]
 
-        base_probability = float(classifier.predict_proba(transformed)[0, delay_index])
-        results: list[dict[str, Any]] = []
+            result = []
+            for index, feature in enumerate(used):
+                value = float(values[index])
+                result.append({
+                    "feature": feature,
+                    "display_name": feature.replace("_", " ").title(),
+                    "shap_value": round(value, 6),
+                    "direction": "up" if value > 0 else "down" if value < 0 else "neutral",
+                    "description": FEATURE_DESCRIPTIONS.get(feature, feature),
+                    "feature_value": None if np.isnan(float(vector.get(feature, np.nan))) else round(float(vector[feature]), 4),
+                    "explanation_method": "shap",
+                })
+            result.sort(key=lambda item: abs(item["shap_value"]), reverse=True)
+            return result
+        except ImportError:
+            logger.info("SHAP not installed; serving global feature-importance explanation.")
+            return _fallback_importance(classifier, vector, used)
 
-        for index, feature in enumerate(used):
-            test = current.copy()
-            baseline = getattr(preprocessor.named_steps["imputer"], "statistics_", np.array([]))
-            if index >= len(baseline) or np.isnan(float(baseline[index])):
-                continue
-            test[0, index] = float(baseline[index])
-            transformed_test = preprocessor.transform(
-                pd.DataFrame(test, columns=used)
-            )
-            replaced_probability = float(
-                classifier.predict_proba(transformed_test)[0, delay_index]
-            )
-            contribution = base_probability - replaced_probability
-
-            value = vector.get(feature)
-            results.append({
-                "feature": feature,
-                "display_name": feature.replace("_", " ").title(),
-                "shap_value": round(contribution, 6),
-                "direction": "up" if contribution > 0 else "down",
-                "description": FEATURE_DESCRIPTIONS.get(feature, feature),
-                "feature_value": (
-                    None
-                    if value is None or np.isnan(float(value))
-                    else round(float(value), 4)
-                ),
-                "explanation_method": "baseline_probability_delta",
-            })
-
-        results.sort(key=lambda item: abs(item["shap_value"]), reverse=True)
-        return results
     except Exception:
-        logger.exception("Feature contribution explanation failed")
+        logger.exception("Model explanation failed")
         return None
