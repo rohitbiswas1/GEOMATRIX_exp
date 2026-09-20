@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Mail, Lock, LogIn, Map, Sun, Moon, Laptop, Loader2, UserPlus } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, LogIn, Map, Sun, Moon, Laptop, Loader2 } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -998,7 +998,7 @@ export default function Login() {
 
           <div className="card-footer">
             <ShieldCheck size={14} style={{ color: '#10b981' }} />
-            <span>Identity-provider authentication</span>
+            <span>Demo / Google authentication</span>
           </div>
         </div>
       </main>
