@@ -57,6 +57,16 @@ def _normalize_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         and str(record.get("validation_status") or "validated").strip().lower() in {"validated", "approved"}
     ]
 
+def _coerce_label(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "delayed"}:
+        return 1
+    if text in {"0", "false", "no", "on_time", "on-track", "ontime"}:
+        return 0
+    return None
+
 def _dataset_fingerprint(records: list[dict[str, Any]]) -> str:
     selected = [
         {key: record.get(key) for key in sorted(FEATURE_COLUMNS + [LABEL_COLUMN, REGRESSION_LABEL])}
@@ -106,7 +116,10 @@ def train_model(records: list[dict[str, Any]], algorithm: str = "RandomForest") 
     except ValueError as exc:
         raise InsufficientDataError(str(exc)) from exc
 
-    y = np.asarray([bool(record[LABEL_COLUMN]) for record in records], dtype=int)
+    parsed_labels = [_coerce_label(record[LABEL_COLUMN]) for record in records]
+    if any(label is None for label in parsed_labels):
+        raise InsufficientDataError("Training rejected: delayed labels must be explicit boolean/0/1 values.")
+    y = np.asarray(parsed_labels, dtype=int)
     if len(np.unique(y)) < 2:
         raise InsufficientDataError("Training rejected: both delayed and on-time real labels are required.")
 
