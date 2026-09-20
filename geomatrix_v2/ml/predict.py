@@ -39,9 +39,9 @@ def predict_project_risk(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     classifier, regressor, preprocessor, meta = artifacts
     try:
-        vector = build_feature_vector(record)
+        vector = build_feature_vector(record, strict=False)
         used = list(meta["used_features"])
-        missing = [feature for feature in used if vector.get(feature) is None]
+        missing = [feature for feature in used if np.isnan(float(vector.get(feature, np.nan)))]
         X = pd.DataFrame([[vector.get(feature) for feature in used]], columns=used)
         X_transformed = preprocessor.transform(X)
         probabilities = classifier.predict_proba(X_transformed)[0]
