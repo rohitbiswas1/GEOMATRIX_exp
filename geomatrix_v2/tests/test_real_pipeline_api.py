@@ -3,8 +3,11 @@ import io
 import json
 
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from geomatrix_v2.database import Base, engine, SessionLocal
+from geomatrix_v2 import database as db_module
+from geomatrix_v2.database import Base
 from geomatrix_v2.main import app
 from geomatrix_v2.models import HistoricalDelayRecord
 import geomatrix_v2.ml.train as train_module
@@ -51,6 +54,27 @@ def _historical_row(index: int) -> dict:
     }
 
 
+
+
+def _isolate_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "test.db"
+    test_engine = create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+    )
+    TestSessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=test_engine,
+    )
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setattr(db_module, "DATABASE_URL", f"sqlite:///{db_path}")
+    monkeypatch.setattr(db_module, "engine", test_engine)
+    monkeypatch.setattr(db_module, "SessionLocal", TestSessionLocal)
+    Base.metadata.drop_all(bind=test_engine)
+    Base.metadata.create_all(bind=test_engine)
+    return test_engine, TestSessionLocal
+
 def _csv_bytes(rows: list[dict]) -> bytes:
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=list(rows[0]))
@@ -60,14 +84,10 @@ def _csv_bytes(rows: list[dict]) -> bytes:
 
 
 def test_real_upload_training_prediction_and_shap_persisted(tmp_path, monkeypatch):
-    db_path = tmp_path / "pipeline.db"
+    test_engine, TestSessionLocal = _isolate_db(tmp_path, monkeypatch)
     model_dir = tmp_path / "model_artifacts"
     model_dir.mkdir()
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
     monkeypatch.setattr(train_module, "MODEL_DIR", str(model_dir))
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
     client = TestClient(app)
 
     project_response = client.post(
@@ -108,10 +128,7 @@ def test_real_upload_training_prediction_and_shap_persisted(tmp_path, monkeypatc
 
 
 def test_missing_historical_label_is_rejected(tmp_path, monkeypatch):
-    db_path = tmp_path / "validation.db"
-    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    test_engine, TestSessionLocal = _isolate_db(tmp_path, monkeypatch)
     client = TestClient(app)
     row = _historical_row(1)
     del row["delayed"]
@@ -126,10 +143,7 @@ def test_missing_historical_label_is_rejected(tmp_path, monkeypatch):
 
 
 def test_real_railway_csv_aliases_are_accepted(tmp_path, monkeypatch):
-    db_path = tmp_path / "railway_aliases.db"
-    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    test_engine, TestSessionLocal = _isolate_db(tmp_path, monkeypatch)
     client = TestClient(app)
 
     row = {
@@ -160,10 +174,7 @@ def test_real_railway_csv_aliases_are_accepted(tmp_path, monkeypatch):
 
 
 def test_real_project_master_csv_aliases_are_accepted(tmp_path, monkeypatch):
-    db_path = tmp_path / "project_aliases.db"
-    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    test_engine, TestSessionLocal = _isolate_db(tmp_path, monkeypatch)
     client = TestClient(app)
 
     row = {
@@ -233,7 +244,7 @@ def test_user_mospi_flash_report_csv_ingestion_and_training(tmp_path, monkeypatc
 
     # Train model on historical records
 
-    with SessionLocal() as session:
+    with TestSessionLocal() as session:
         sample = session.query(HistoricalDelayRecord).first()
         assert sample is not None
         assert sample.land_area_ha is not None, sample.__dict__
