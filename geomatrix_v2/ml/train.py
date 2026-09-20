@@ -123,10 +123,13 @@ def train_model(records: list[dict[str, Any]], algorithm: str = "RandomForest") 
     if len(np.unique(y)) < 2:
         raise InsufficientDataError("Training rejected: both delayed and on-time real labels are required.")
 
-    used_features = [feature for feature in FEATURE_COLUMNS if frame[feature].notna().any()]
+    feature_counts = {feature: int(frame[feature].notna().sum()) for feature in FEATURE_COLUMNS}
+    used_features = [feature for feature in FEATURE_COLUMNS if feature_counts[feature] > 0]
     if len(used_features) < MIN_FEATURES:
+        detail = ", ".join(f"{feature}={count}" for feature, count in feature_counts.items())
         raise InsufficientDataError(
-            f"Only {len(used_features)} model features contain source data. At least {MIN_FEATURES} usable features are required."
+            f"Only {len(used_features)} model features contain source data. "
+            f"At least {MIN_FEATURES} usable features are required. Counts: {detail}"
         )
 
     algorithm = algorithm if algorithm in {"RandomForest", "XGBoost"} else "RandomForest"
