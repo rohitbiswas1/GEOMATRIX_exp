@@ -20,6 +20,7 @@ import {
   Cpu
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { fetchAlerts } from '../lib/apiClient';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -29,6 +30,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [q, setQ] = useState('');
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [userInfo, setUserInfo] = useState<{ role?: string; email?: string } | null>(null);
+  const [openAlerts, setOpenAlerts] = useState(0);
 
   const login = path === '/login';
 
@@ -42,6 +44,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
       try { setUserInfo(JSON.parse(auth)); } catch { /* ignore */ }
     }
   }, [login, router]);
+
+  useEffect(() => {
+    if (login) return;
+    fetchAlerts('Open', 100).then(items => setOpenAlerts(items.length)).catch(() => setOpenAlerts(0));
+  }, [login]);
 
   // Theme synchronization - default to light
   useEffect(() => {
@@ -158,9 +165,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="topright">
-            <div className="status-badge" title="Automated pipeline active">
+            <div className="status-badge" title="Authenticated application session">
               <span className="pulse-dot" />
-              <span>System Operational</span>
+              <span>Authenticated</span>
             </div>
 
             <div className="topbar-date">
@@ -170,12 +177,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
             <button
               className="topbar-icon-btn"
-              title="5 Priority Alerts"
+              title={`${openAlerts} open alerts`}
               onClick={() => router.push('/alerts')}
               aria-label="View alerts"
             >
               <Bell size={15} />
-              <span className="topbar-badge">5</span>
+              <span className="topbar-badge">{openAlerts}</span>
             </button>
 
             <div className="theme-switch-group" role="radiogroup" aria-label="Theme selector">
