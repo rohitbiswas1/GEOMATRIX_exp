@@ -66,10 +66,10 @@ export default function Reports() {
       projects.map(p => [p.project_code,p.name,p.state,p.district,p.current_stage ?? '',p.risk_score ?? '',p.risk_level ?? '',p.delay_probability == null ? '' : (p.delay_probability * 100).toFixed(2) + '%',p.data_classification ?? '']),
       'geomatrix-government-project-risk-register.pdf',
       [
-        { label: 'Projects', value: summary?.total_projects ?? 0 },
-        { label: 'Critical', value: summary?.critical_count ?? 0 },
-        { label: 'High', value: summary?.high_count ?? 0 },
-        { label: 'Open Alerts', value: summary?.alerts_open ?? 0 },
+        { label: 'Projects', value: String(summary?.total_projects ?? 0) },
+        { label: 'Critical', value: String(summary?.critical_count ?? 0) },
+        { label: 'High', value: String(summary?.high_count ?? 0) },
+        { label: 'Open Alerts', value: String(summary?.alerts_open ?? 0) },
       ],
     );
   }
