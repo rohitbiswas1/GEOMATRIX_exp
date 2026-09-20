@@ -62,6 +62,7 @@ def test_real_upload_training_prediction_and_shap_persisted(tmp_path, monkeypatc
     db_path = tmp_path / "pipeline.db"
     model_dir = tmp_path / "model_artifacts"
     model_dir.mkdir()
+    monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
     monkeypatch.setattr(train_module, "MODEL_DIR", str(model_dir))
     Base.metadata.drop_all(bind=engine)
@@ -231,7 +232,7 @@ def test_user_mospi_flash_report_csv_ingestion_and_training(tmp_path, monkeypatc
 
     # Train model on historical records
     train_resp = client.post("/api/model/train?algorithm=RandomForest")
-    assert train_resp.status_code == 200
+    assert train_resp.status_code == 200, train_resp.text
     assert train_resp.json()["success"] is True
     assert train_resp.json()["metrics"]["accuracy"] >= 0.0
 
