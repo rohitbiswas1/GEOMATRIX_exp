@@ -182,3 +182,24 @@ class ProjectValidation(BaseModel):
     missing_fields: List[str]
     can_predict: bool
     message: str
+
+class ProjectActionCreate(BaseModel):
+    action_type: str = Field(min_length=2, max_length=50)
+    assigned_to: str = Field(min_length=1, max_length=200)
+    priority: str = Field(default="Medium", pattern="^(Critical|High|Medium|Low)$")
+    due_date: Optional[datetime] = None
+    notes: Optional[str] = Field(default=None, max_length=4000)
+
+class ProjectActionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    project_id: str
+    action_type: str
+    assigned_to: str
+    priority: str
+    due_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    status: str
+    created_by: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
