@@ -1,23 +1,20 @@
-"""Authentication endpoints for the GEOMATRIX application.
+"""Simple password/Google compatibility endpoints for GEOMATRIX.
 
-Password login uses credentials stored only in server-side environment variables.
-Google login remains available through the Next.js Google Identity Services flow.
+Password credentials are configured via server-side AUTH_EMAIL/AUTH_PASSWORD.
+Google Identity Services remains available through the frontend route.
 """
-import base64
-import hashlib
-import hmac
-import json
 import os
-import time
 
 from fastapi import APIRouter, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+
+from ..security import create_signed_session_cookie
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
@@ -25,58 +22,30 @@ class GoogleLoginRequest(BaseModel):
     credential: str
 
 
-def _create_session(email: str, name: str) -> str:
-    secret = (os.getenv("AUTH_SECRET") or os.getenv("NEXTAUTH_SECRET") or "").encode()
-    if not secret:
-        raise RuntimeError("AUTH_SECRET is not configured.")
-
-    payload = {
-        "email": email,
-        "name": name,
-        "iat": int(time.time() * 1000),
-    }
-    body = base64.urlsafe_b64encode(
-        json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    ).decode().rstrip("=")
-    signature = base64.urlsafe_b64encode(
-        hmac.new(secret, body.encode(), hashlib.sha256).digest()
-    ).decode().rstrip("=")
-    return f"{body}.{signature}"
-
-
 @router.post("/login")
-def login(request: LoginRequest, response: Response):
-    configured_email = (os.getenv("AUTH_EMAIL") or "").strip().lower()
-    configured_password = os.getenv("AUTH_PASSWORD") or ""
+def login(body: LoginRequest, response: Response):
+    configured_email = os.getenv("AUTH_EMAIL", "").strip().lower()
+    configured_password = os.getenv("AUTH_PASSWORD", "")
 
     if not configured_email or not configured_password:
         raise HTTPException(
             503,
-            "Password login is not configured. Set AUTH_EMAIL and AUTH_PASSWORD in the deployment environment.",
+            "Password sign-in is not configured. Set AUTH_EMAIL and AUTH_PASSWORD.",
         )
 
-    supplied_email = request.email.strip().lower()
-    if (
-        not hmac.compare_digest(supplied_email, configured_email)
-        or not hmac.compare_digest(request.password, configured_password)
-    ):
+    if body.email.strip().lower() != configured_email or body.password != configured_password:
         raise HTTPException(401, "Invalid email or password.")
-
-    try:
-        session = _create_session(request.email.strip(), request.email.strip())
-    except RuntimeError as exc:
-        raise HTTPException(503, str(exc)) from exc
 
     response.set_cookie(
         key="geomatrix_session",
-        value=session,
+        value=create_signed_session_cookie({"email": configured_email, "name": configured_email.split("@")[0]}),
         httponly=True,
         secure=os.getenv("APP_ENV", "development").lower() == "production",
         samesite="lax",
-        path="/",
         max_age=8 * 60 * 60,
+        path="/",
     )
-    return {"email": request.email.strip(), "name": request.email.strip()}
+    return {"success": True, "email": configured_email, "name": configured_email.split("@")[0]}
 
 
 @router.post("/google")
