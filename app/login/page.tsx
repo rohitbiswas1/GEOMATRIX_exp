@@ -134,34 +134,11 @@ export default function Login() {
     document.head.appendChild(script);
   }, [isGoogleAuthReady, googleClientId, router, effectiveTheme]);
 
-  function persistPrototypeAuth(provider: 'prototype', name: string, emailValue: string) {
-    sessionStorage.setItem(
-      'geomatrix-auth',
-      JSON.stringify({
-        provider,
-        email: emailValue || 'prototype@geomatrix.local',
-        name,
-        signedInAt: new Date().toISOString(),
-      })
-    );
-    router.push('/dashboard');
-  }
-
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password.trim()) {
-      setError('Enter a valid email and password to continue.');
-      return;
-    }
-
-    setIsLoading(true);
-    const displayName = trimmedEmail.split('@')[0]
-      .replace(/[._-]+/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-
-    persistPrototypeAuth('prototype', displayName || 'Prototype Operator', trimmedEmail);
+    setError('Password authentication is disabled. Use the configured identity provider.');
   }
+
 
   return (
     <div className={`login-page-wrapper theme-${effectiveTheme}`} data-theme={effectiveTheme}>
@@ -796,7 +773,7 @@ export default function Login() {
         <div className="glass-card">
           <div className="card-header">
             <h2>Command Center Sign In</h2>
-            <p>Access the prototype decision support system</p>
+            <p>Secure access to the GEOMATRIX decision-support system</p>
           </div>
 
           <form onSubmit={submit} noValidate>
@@ -892,7 +869,7 @@ export default function Login() {
 
           <div className="card-footer">
             <ShieldCheck size={14} style={{ color: '#10b981' }} />
-            <span>Prototype Authentication Only</span>
+            <span>Identity-provider authentication</span>
           </div>
         </div>
       </main>
