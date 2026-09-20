@@ -43,16 +43,10 @@ def explain_project(record: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
             arr = np.asarray(raw)
             values = arr[0, :, 1] if arr.ndim == 3 else arr[0]
 
-        # Tree SHAP after add_indicator produces original features followed by
-        # missingness indicators. Collapse each original feature + its indicator.
-        base_feature_count = len(used)
         values = np.asarray(values, dtype=float)
         collapsed = []
         for index, feature in enumerate(used):
             shap_value = float(values[index])
-            indicator_index = base_feature_count + index
-            if indicator_index < len(values) and frame.iloc[0][feature] is None:
-                shap_value += float(values[indicator_index])
             collapsed.append({
                 "feature": feature,
                 "display_name": feature.replace("_", " ").title(),
