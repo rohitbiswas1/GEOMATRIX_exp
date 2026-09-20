@@ -8,7 +8,7 @@ import os
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, EmailStr
 
-from ..security import create_signed_session_cookie
+from security import create_signed_session_cookie
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
