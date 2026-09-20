@@ -1,10 +1,10 @@
-"""Geomatrix v2 Alerts Router"""
+"""Alerts API."""
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from database import get_db
-from models import Alert, Project
-from schemas import AlertOut
+from ..database import get_db
+from ..models import Alert, Project
+from ..schemas import AlertOut
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
@@ -12,20 +12,19 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 @router.get("", response_model=list[AlertOut])
 def list_alerts(
     status: str = Query("Open"),
-    limit: int = Query(50),
-    db: Session = Depends(get_db)
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
 ):
     q = db.query(Alert)
-    if status != "all":
+    if status.lower() != "all":
         q = q.filter(Alert.status == status)
     alerts = q.order_by(Alert.detected_at.desc()).limit(limit).all()
-
     result = []
-    for a in alerts:
-        p = db.query(Project).filter_by(id=a.project_id).first()
-        out = AlertOut.model_validate(a)
-        out.project_name = p.name if p else None
-        result.append(out)
+    for alert in alerts:
+        project = db.query(Project).filter_by(id=alert.project_id).first()
+        item = AlertOut.model_validate(alert)
+        item.project_name = project.name if project else None
+        result.append(item)
     return result
 
 
@@ -35,9 +34,4 @@ def alerts_summary(db: Session = Depends(get_db)):
     open_count = db.query(Alert).filter_by(status="Open").count()
     critical = db.query(Alert).filter_by(severity="Critical", status="Open").count()
     high = db.query(Alert).filter_by(severity="High", status="Open").count()
-    return {
-        "total": total,
-        "open": open_count,
-        "critical": critical,
-        "high": high,
-    }
+    return {"total": total, "open": open_count, "critical": critical, "high": high}
