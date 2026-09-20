@@ -65,7 +65,7 @@ def _pending_status(value: Any) -> float | None:
         return None
     return 1.0 if str(value).strip().lower() in {"pending", "disputed"} else 0.0
 
-def build_feature_vector(record: dict[str, Any]) -> dict[str, float]:
+def build_feature_vector(record: dict[str, Any], *, strict: bool = True) -> dict[str, float]:
     rr_value = _first_present(record, "rr_pending")
     if rr_value is None:
         rr_value = record.get("rr_status")
@@ -97,9 +97,13 @@ def build_feature_vector(record: dict[str, Any]) -> dict[str, float]:
     }
 
     missing = [feature for feature, value in values.items() if value is None]
-    if missing:
+    if strict and missing:
         raise ValueError(f"Missing model features: {', '.join(missing)}")
-    return {feature: float(value) for feature, value in values.items()}
+    # Keep missing values as NaN for the training-time imputation pipeline.
+    return {
+        feature: (float(value) if value is not None else float("nan"))
+        for feature, value in values.items()
+    }
 
 def validate_prediction_inputs(record: dict[str, Any]) -> list[str]:
     return [
@@ -107,8 +111,8 @@ def validate_prediction_inputs(record: dict[str, Any]) -> list[str]:
         if record.get(field) is None or record.get(field) == ""
     ]
 
-def build_feature_dataframe(records: list[dict[str, Any]]) -> pd.DataFrame:
+def build_feature_dataframe(records: list[dict[str, Any]], *, strict: bool = False) -> pd.DataFrame:
     return pd.DataFrame(
-        [build_feature_vector(record) for record in records],
+        [build_feature_vector(record, strict=strict) for record in records],
         columns=FEATURE_COLUMNS,
     )
