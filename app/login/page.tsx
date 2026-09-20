@@ -170,44 +170,24 @@ export default function Login() {
 
     setIsLoading(true);
     try {
-      const demo = DEMO_ACCOUNTS.find(
-        account => account.email === normalizedEmail && account.password === password
-      );
-
-      const registered = JSON.parse(
-        window.localStorage.getItem('geomatrix-demo-users') || '[]'
-      ) as Array<{ name: string; email: string; password: string }>;
-
-      const localUser = registered.find(
-        user => user.email.toLowerCase() === normalizedEmail && user.password === password
-      );
-
-      if (!demo && !localUser) {
-        throw new Error('Invalid login details. Use a demo account or register a new demo user.');
-      }
-
-      const identity = demo
-        ? { name: demo.name, email: demo.email, role: demo.role }
-        : { name: localUser!.name, email: localUser!.email, role: 'Registered Demo User' };
-
-      const response = await fetch('/api/auth/session', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(identity),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error || 'Unable to create the login session.');
+        throw new Error(data.error || 'Sign-in failed.');
       }
 
       sessionStorage.setItem(
         'geomatrix-auth',
         JSON.stringify({
-          provider: demo ? 'demo' : 'registration',
-          email: identity.email,
-          name: identity.name,
-          role: identity.role,
+          provider: 'password',
+          email: data.email,
+          name: data.name,
+          role: data.role,
           signedInAt: new Date().toISOString(),
         })
       );
@@ -990,15 +970,15 @@ export default function Login() {
           </div>
 
           <div style={{ marginTop: 16, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
-            New to GEOMATRIX?{' '}
+            Need access?{' '}
             <a href="/register" style={{ color: '#60a5fa', fontWeight: 700, textDecoration: 'none' }}>
-              Create a demo account
+              Register demo account
             </a>
           </div>
 
           <div className="card-footer">
             <ShieldCheck size={14} style={{ color: '#10b981' }} />
-            <span>Demo / Google authentication</span>
+            <span>Password or Google authentication</span>
           </div>
         </div>
       </main>
