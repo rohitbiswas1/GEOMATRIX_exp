@@ -1,4 +1,4 @@
-"""Gemini decision-support endpoint. No secrets are exposed to clients."""
+"""Gemini decision-support endpoint. Secrets remain server-side."""
 import os
 from typing import Any
 
@@ -7,42 +7,26 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/gemini", tags=["gemini"])
 
-
 class GeminiRequest(BaseModel):
     project: dict[str, Any]
     prediction: dict[str, Any] | None = None
     shap_features: list[dict[str, Any]] | None = None
 
-
 def _build_prompt(req: GeminiRequest) -> str:
-    project = req.project or {}
-    prediction = req.prediction or {}
-    shap = req.shap_features or []
-    feature_summary = "
-".join(
+    feature_summary = "\n".join(
         f"- {item.get('feature', 'unknown')}: {item.get('shap_value', 0)} ({item.get('direction', 'neutral')})"
-        for item in shap[:8]
+        for item in (req.shap_features or [])[:8]
     ) or "- No SHAP features available."
     return (
         "You are a decision-support assistant for land-acquisition monitoring. "
-        "Use ONLY the supplied facts. Never invent project facts, scores, legal status, "
-        "citations, or recommendations presented as official decisions. State clearly "
-        "that your output is AI-generated decision support and requires human review.
-
-"
-        f"Project data:
-{project}
-
-ML prediction:
-{prediction}
-
-SHAP contributions:
-{feature_summary}
-
-"
+        "Use ONLY supplied facts. Never invent project facts, scores, legal status, "
+        "citations, or official decisions. State that your output is AI-generated "
+        "decision support requiring human review.\n\n"
+        f"Project data:\n{req.project}\n\n"
+        f"ML prediction:\n{req.prediction or {}}\n\n"
+        f"SHAP contributions:\n{feature_summary}\n\n"
         "Provide a concise risk-driver explanation and evidence-based actions."
     )
-
 
 @router.post("/explain")
 def explain_with_gemini(req: GeminiRequest):
