@@ -152,3 +152,18 @@ class AuditLog(Base):
     new_value = Column(JSON, nullable=True)
     request_id = Column(String, nullable=True, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+
+class ProjectAction(Base):
+    __tablename__ = "project_actions"
+    id = Column(String, primary_key=True)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
+    action_type = Column(String, nullable=False)
+    assigned_to = Column(String, nullable=False)
+    priority = Column(String, nullable=False, default="Medium")
+    due_date = Column(DateTime, nullable=True)
+    notes = Column(Text)
+    status = Column(String, nullable=False, default="Open")
+    created_by = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    project = relationship("Project")
