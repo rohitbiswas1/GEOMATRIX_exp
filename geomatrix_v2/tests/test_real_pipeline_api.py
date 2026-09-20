@@ -4,8 +4,9 @@ import json
 
 from fastapi.testclient import TestClient
 
-from geomatrix_v2.database import Base, engine
+from geomatrix_v2.database import Base, engine, SessionLocal
 from geomatrix_v2.main import app
+from geomatrix_v2.models import HistoricalDelayRecord
 import geomatrix_v2.ml.train as train_module
 
 
@@ -231,6 +232,19 @@ def test_user_mospi_flash_report_csv_ingestion_and_training(tmp_path, monkeypatc
     assert proj_resp.json()["errors"] == []
 
     # Train model on historical records
+
+    with SessionLocal() as session:
+        sample = session.query(HistoricalDelayRecord).first()
+        assert sample is not None
+        assert sample.land_area_ha is not None, sample.__dict__
+        assert sample.affected_families is not None, sample.__dict__
+        assert sample.pending_claims is not None, sample.__dict__
+        assert sample.legal_cases is not None, sample.__dict__
+        assert sample.doc_completeness_pct is not None, sample.__dict__
+        assert sample.approval_pending is not None, sample.__dict__
+        assert sample.rr_pending is not None, sample.__dict__
+        assert sample.overdue_milestones is not None, sample.__dict__
+
     train_resp = client.post("/api/model/train?algorithm=RandomForest")
     assert train_resp.status_code == 200, train_resp.text
     assert train_resp.json()["success"] is True
