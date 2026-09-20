@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 from .database import DATABASE_URL, engine, init_db
 from .routers.alerts import router as alerts_router
+from .routers.audit import router as audit_router
 from .routers.analytics import router as analytics_router
 from .routers.auth import router as auth_router
 from .routers.gemini import router as gemini_router
@@ -62,6 +63,7 @@ app.include_router(auth_router)
 app.include_router(gemini_router)
 app.include_router(projects_router)
 app.include_router(alerts_router)
+app.include_router(audit_router)
 app.include_router(ingest_router)
 app.include_router(map_router)
 app.include_router(ml_router)
