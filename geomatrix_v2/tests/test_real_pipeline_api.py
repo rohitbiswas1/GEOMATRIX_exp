@@ -215,13 +215,14 @@ N22000463,MUMBAI AHMEDABAD HIGH SPEED RAIL PROJECT,Railways,NHSRCL,Multi-State,2
 
 
 def test_user_mospi_flash_report_csv_ingestion_and_training(tmp_path, monkeypatch):
-    _, TestSessionLocal = _isolate_db(tmp_path, monkeypatch)
+    _isolate_db(tmp_path, monkeypatch)
     model_dir = tmp_path / "model_artifacts"
     model_dir.mkdir()
     monkeypatch.setattr(train_module, "MODEL_DIR", str(model_dir))
     client = TestClient(app)
 
-    # Ingest as historical delay records for training
+    # MoSPI flash reports contain a delay label but not enough GEOMATRIX
+    # features for a defensible model. Preserve the data, then block training.
     hist_resp = client.post(
         "/api/ingest/upload?data_type=historical",
         files={"file": ("mospi_flash_report.csv", USER_SAMPLE_CSV.encode("utf-8"), "text/csv")},
@@ -230,41 +231,8 @@ def test_user_mospi_flash_report_csv_ingestion_and_training(tmp_path, monkeypatc
     assert hist_resp.json()["records_saved"] == 10
     assert hist_resp.json()["errors"] == []
 
-    # Ingest as active projects for prediction
-    proj_resp = client.post(
-        "/api/ingest/upload?data_type=projects",
-        files={"file": ("mospi_flash_report.csv", USER_SAMPLE_CSV.encode("utf-8"), "text/csv")},
-    )
-    assert proj_resp.status_code == 200
-    assert proj_resp.json()["records_saved"] == 10
-    assert proj_resp.json()["errors"] == []
-
-    # Train model on historical records
-
-    with TestSessionLocal() as session:
-        sample = session.query(HistoricalDelayRecord).first()
-        assert sample is not None
-        assert sample.land_area_ha is not None, sample.__dict__
-        assert sample.affected_families is not None, sample.__dict__
-        assert sample.pending_claims is not None, sample.__dict__
-        assert sample.legal_cases is not None, sample.__dict__
-        assert sample.doc_completeness_pct is not None, sample.__dict__
-        assert sample.approval_pending is not None, sample.__dict__
-        assert sample.rr_pending is not None, sample.__dict__
-        assert sample.overdue_milestones is not None, sample.__dict__
-
     train_resp = client.post("/api/model/train?algorithm=RandomForest")
-    assert train_resp.status_code == 200, train_resp.text
-    assert train_resp.json()["success"] is True
-    assert train_resp.json()["metrics"]["accuracy"] >= 0.0
-
-    # Get project and predict
-    projects_resp = client.get("/api/projects")
-    assert projects_resp.status_code == 200
-    project_id = projects_resp.json()[0]["id"]
-
-    pred_resp = client.post(f"/api/projects/{project_id}/predict-risk")
-    assert pred_resp.status_code == 200
-    pred = pred_resp.json()["prediction"]
-    assert pred["status"] == "ok"
-    assert 0.0 <= pred["delay_probability"] <= 1.0
+    assert train_resp.status_code == 400
+    detail = train_resp.json()["detail"]
+    assert "model features contain source data" in detail
+    assert "Counts:" in detail
