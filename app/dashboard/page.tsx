@@ -142,46 +142,42 @@ function ScoreRing({ score }: { score: number }) {
 // ── stage pipeline ────────────────────────────────────────────────────────────
 
 function StageBar({ projects }: { projects: ApiProject[] }) {
-  const counts: Record<string, number> = {};
-  PIPELINE_STAGES.forEach(s => { counts[s] = 0; });
-  projects.forEach(p => {
-    const stage = p.current_stage ?? '';
-    if (counts[stage] !== undefined) counts[stage]++;
+  const rows = PIPELINE_STAGES.map(stage => {
+    const items = projects.filter(p => (p.current_stage ?? '') === stage);
+    const scores = items.map(p => p.risk_score).filter((v): v is number => v != null);
+    const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+    return { stage, count: items.length, avgRisk: avg };
   });
-  const stageRisk: Record<string, string> = {
-    'Notification': 'Low', 'Objection / Hearing': 'Medium', 'Compensation': 'Critical',
-    'Award': 'Critical', 'Possession': 'High', 'Rehabilitation & Resettlement': 'High', 'Legal / Dispute': 'High',
-  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {PIPELINE_STAGES.map((stage, i) => {
-        const cnt = counts[stage] ?? 0;
-        const risk = stageRisk[stage] ?? 'Low';
-        return (
-          <div key={stage} style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '10px 14px', borderRadius: 8, background: 'var(--bg)',
-            border: '1px solid var(--line)', transition: 'box-shadow 0.2s',
-          }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: '50%',
-              background: cnt > 0 ? riskColor(risk) : 'var(--line)',
-              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 700, flexShrink: 0,
-            }}>{i + 1}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>{stage}</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                {cnt > 0 ? `${cnt} project${cnt > 1 ? 's' : ''} in this stage` : 'No projects'}
-              </div>
+      {rows.map((row, i) => (
+        <div key={row.stage} style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '10px 14px', borderRadius: 8, background: 'var(--bg)',
+          border: '1px solid var(--line)',
+        }}>
+          <div style={{
+            width: 24, height: 24, borderRadius: '50%',
+            background: row.count > 0 ? 'var(--blue)' : 'var(--line)',
+            color: '#fff', display: 'grid', placeItems: 'center',
+            fontSize: 11, fontWeight: 700, flexShrink: 0,
+          }}>{i + 1}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>{row.stage}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+              {row.count > 0 ? `${row.count} project${row.count > 1 ? 's' : ''}` : 'No projects'}
             </div>
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
-              background: riskBg(risk), color: riskTextColor(risk),
-            }}>{risk}</span>
           </div>
-        );
-      })}
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
+            background: row.avgRisk == null ? 'var(--line)' : riskBg(row.avgRisk >= 75 ? 'Critical' : row.avgRisk >= 50 ? 'High' : row.avgRisk >= 25 ? 'Medium' : 'Low'),
+            color: row.avgRisk == null ? 'var(--muted)' : riskTextColor(row.avgRisk >= 75 ? 'Critical' : row.avgRisk >= 50 ? 'High' : row.avgRisk >= 25 ? 'Medium' : 'Low'),
+          }}>
+            {row.avgRisk == null ? 'Unscored' : `Avg risk ${row.avgRisk.toFixed(1)}`}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
