@@ -27,7 +27,7 @@ try:
 except ImportError:
     XGBOOST_AVAILABLE = False
 
-from .features import FEATURE_COLUMNS, LABEL_COLUMN, REGRESSION_LABEL
+from ml.features import FEATURE_COLUMNS, LABEL_COLUMN, REGRESSION_LABEL
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ def train_model(records: list[dict[str, Any]], algorithm: str = "RandomForest") 
     if len(records) < MIN_SAMPLES:
         raise InsufficientDataError(f"Only {len(records)} approved real labeled records are available. Minimum {MIN_SAMPLES} is required.")
 
-    from .features import build_feature_dataframe
+    from ml.features import build_feature_dataframe
     try:
         frame = build_feature_dataframe(records, strict=False)
     except ValueError as exc:
