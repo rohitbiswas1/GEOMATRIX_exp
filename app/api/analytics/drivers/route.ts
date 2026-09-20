@@ -1,1 +1,19 @@
-import {NextResponse} from 'next/server';export async function GET(){return NextResponse.json({data:[['Compensation backlog',31],['Legal dispute',24],['Pending approval',18],['Documentation gap',14],['R&R',9]]})}
+import { NextResponse } from 'next/server';
+
+function backendUrl(): string {
+  const url = (process.env.MODEL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '').trim();
+  if (!url) throw new Error('Backend API is not configured. Set MODEL_API_URL.');
+  return url.replace(/\/+$/, '');
+}
+
+export async function GET() {
+  try {
+    const response = await fetch(`${backendUrl()}/api/analytics/drivers`, { cache: 'no-store' });
+    const text = await response.text();
+    let data: unknown = [];
+    try { data = text ? JSON.parse(text) : []; } catch { data = []; }
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Driver analytics unavailable.' }, { status: 503 });
+  }
+}
