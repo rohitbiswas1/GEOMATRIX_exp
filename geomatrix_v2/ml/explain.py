@@ -10,8 +10,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from .features import build_feature_vector
-from .train import load_active_model
+from ml.features import build_feature_vector
+from ml.train import load_active_model
 
 logger = logging.getLogger(__name__)
 
