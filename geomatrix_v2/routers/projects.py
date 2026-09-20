@@ -6,13 +6,13 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from ..audit import write_audit
-from ..database import get_db
-from ..models import Alert, Project, ProjectAction, RiskPrediction
-from ..schemas import DashboardSummary, ProjectActionCreate, ProjectActionOut, ProjectCreate, ProjectOut, ProjectUpdate, ProjectValidation
-from ..ml.explain import explain_project
-from ..ml.features import validate_prediction_inputs
-from ..ml.predict import predict_project_risk
+from audit import write_audit
+from database import get_db
+from models import Alert, Project, ProjectAction, RiskPrediction
+from schemas import DashboardSummary, ProjectActionCreate, ProjectActionOut, ProjectCreate, ProjectOut, ProjectUpdate, ProjectValidation
+from ml.explain import explain_project
+from ml.features import validate_prediction_inputs
+from ml.predict import predict_project_risk
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
