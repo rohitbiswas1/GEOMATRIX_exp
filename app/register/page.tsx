@@ -168,7 +168,7 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      <style>{\`
+      <style>{`
         .register-page {
           min-height: 100vh;
           display: grid;
