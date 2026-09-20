@@ -220,8 +220,7 @@ def test_user_mospi_flash_report_csv_ingestion_and_training(tmp_path, monkeypatc
     model_dir.mkdir()
     monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
     monkeypatch.setattr(train_module, "MODEL_DIR", str(model_dir))
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    _isolate_db(tmp_path, monkeypatch)
     client = TestClient(app)
 
     # Ingest as historical delay records for training
