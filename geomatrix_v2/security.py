@@ -31,3 +31,16 @@ def verify_session_token(token: str | None) -> dict[str, Any] | None:
 
 def is_production() -> bool:
     return os.getenv("APP_ENV", "development").lower() == "production"
+
+
+def create_signed_session_cookie(payload: dict[str, Any]) -> str:
+    secret = (os.getenv("AUTH_SECRET") or os.getenv("NEXTAUTH_SECRET") or "").encode()
+    if not secret:
+        raise RuntimeError("AUTH_SECRET is not configured.")
+    body = base64.urlsafe_b64encode(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    ).decode().rstrip("=")
+    signature = base64.urlsafe_b64encode(
+        hmac.new(secret, body.encode(), hashlib.sha256).digest()
+    ).decode().rstrip("=")
+    return f"{body}.{signature}"
