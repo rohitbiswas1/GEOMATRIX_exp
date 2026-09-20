@@ -21,17 +21,8 @@ PREDICTION_REQUIRED_FIELDS = [
     "land_required",
     "affected_families",
     "current_stage",
-    "doc_completeness_pct",
-    "objection_count",
-    "legal_case_count",
-    "rr_status",
-    "approval_pending",
-    "overdue_milestones",
-    "compensation_status",
-    "env_clearance_status",
-    "forest_clearance_status",
-    "crz_status",
 ]
+
 
 def _first_present(record: dict[str, Any], *names: str):
     for name in names:
