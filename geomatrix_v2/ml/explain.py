@@ -30,7 +30,7 @@ def explain_project(record: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         return None
     classifier, _, preprocessor, meta = artifacts
     try:
-        vector = build_feature_vector(record)
+        vector = build_feature_vector(record, strict=False)
         used = list(meta["used_features"])
         frame = pd.DataFrame([[vector.get(feature) for feature in used]], columns=used)
         transformed = preprocessor.transform(frame)
@@ -53,7 +53,7 @@ def explain_project(record: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
                 "shap_value": round(shap_value, 6),
                 "direction": "up" if shap_value > 0 else "down",
                 "description": FEATURE_DESCRIPTIONS.get(feature, feature),
-                "feature_value": None if vector.get(feature) is None else round(float(vector[feature]), 4),
+                "feature_value": None if np.isnan(float(vector.get(feature, np.nan))) else round(float(vector[feature]), 4),
             })
 
         collapsed.sort(key=lambda item: abs(item["shap_value"]), reverse=True)
