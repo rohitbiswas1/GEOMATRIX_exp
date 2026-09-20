@@ -5,11 +5,11 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from ..audit import write_audit
-from ..database import get_db
-from ..models import HistoricalDelayRecord, ModelRun
-from ..ml.train import InsufficientDataError, train_model
-from ..ml.evaluate import get_model_status
+from audit import write_audit
+from database import get_db
+from models import HistoricalDelayRecord, ModelRun
+from ml.train import InsufficientDataError, train_model
+from ml.evaluate import get_model_status
 
 router = APIRouter(prefix="/api/model", tags=["model"])
 logger = logging.getLogger(__name__)
