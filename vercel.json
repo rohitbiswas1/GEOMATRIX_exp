@@ -5,8 +5,7 @@
       "framework": "nextjs"
     },
     "backend": {
-      "root": "geomatrix_v2",
-      "framework": "fastapi",
+      "root": "geomatrix_v2/",
       "entrypoint": "vercel_app:app"
     }
   },
