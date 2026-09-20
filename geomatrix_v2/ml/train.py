@@ -102,7 +102,7 @@ def train_model(records: list[dict[str, Any]], algorithm: str = "RandomForest") 
 
     from .features import build_feature_dataframe
     try:
-        frame = build_feature_dataframe(records)
+        frame = build_feature_dataframe(records, strict=False)
     except ValueError as exc:
         raise InsufficientDataError(str(exc)) from exc
 
