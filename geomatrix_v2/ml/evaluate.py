@@ -1,6 +1,6 @@
 """Model evaluation/status utilities."""
 from typing import Any, Dict
-from .train import load_active_model
+from ml.train import load_active_model
 
 def get_model_status() -> Dict[str, Any]:
     artifacts = load_active_model()
