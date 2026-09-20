@@ -192,7 +192,7 @@ export default function ProjectRiskIntelligence() {
 
   function act(label: string) {
     setModal(false);
-    setToast(label + ' recorded successfully');
+    setToast(label + ' — workflow action is not persisted yet.');
     setTimeout(() => setToast(''), 3500);
   }
 
@@ -675,61 +675,53 @@ export default function ProjectRiskIntelligence() {
             <div className="panelhead">
               <div>
                 <div className="paneltitle">Acquisition Stage Pipeline</div>
-                <div className="muted">Current stage: <strong>{p.current_stage ?? 'In Progress'}</strong></div>
+                <div className="muted">Status is shown from the project's recorded current stage only.</div>
               </div>
             </div>
-            {stages.map((s, i) => {
-              const isCompleted = i < safeIdx;
-              const isCurrent = i === safeIdx;
-              const stageRiskScores: Record<string, number> = { 'Notification': 18, 'Objection / Hearing': 43, 'Compensation': 92, 'Award': 76, 'Possession': 58, 'Rehabilitation & Resettlement': 62, 'Legal / Dispute': 71 };
-              const sr = stageRiskScores[s] ?? 40;
-              return (
-                <div key={s} className={'stage ' + (isCurrent ? 'current' : '')} style={{ padding: '12px 0' }}>
-                  <div className="stagecircle" style={{
-                    background: isCompleted ? 'var(--green-bg)' : isCurrent ? riskBg : 'var(--bg)',
-                    color: isCompleted ? 'var(--green-text)' : isCurrent ? riskColor : 'var(--muted)',
-                    border: `1px solid ${isCurrent ? riskColor + '40' : 'var(--line)'}`
+            <div style={{ display: 'grid', gap: 8 }}>
+              {stages.map((stage, i) => {
+                const isCompleted = safeIdx >= 0 && i < safeIdx;
+                const isCurrent = safeIdx >= 0 && i === safeIdx;
+                return (
+                  <div key={stage} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '11px 13px', border: '1px solid var(--line)',
+                    borderRadius: 8, background: isCurrent ? 'var(--blue-light)' : 'var(--bg)',
                   }}>
-                    {isCompleted ? <CheckCircle2 size={13} /> : isCurrent ? <AlertTriangle size={13} /> : i + 1}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <b style={{ fontSize: 13 }}>{s}</b>
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      {isCompleted ? '✓ Completed' : isCurrent ? `⚠ Current — ${p.overdue_milestones ?? 0} overdue milestones` : 'Pending'}
+                    <div style={{
+                      width: 24, height: 24, borderRadius: '50%', display: 'grid', placeItems: 'center',
+                      background: isCompleted ? 'var(--green-bg)' : isCurrent ? 'var(--blue-light)' : 'var(--line)',
+                      color: isCompleted ? 'var(--green)' : isCurrent ? 'var(--blue)' : 'var(--muted)',
+                      fontSize: 11, fontWeight: 800,
+                    }}>
+                      {isCompleted ? '✓' : i + 1}
                     </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{stage}</div>
+                      <div className="muted" style={{ fontSize: 11 }}>
+                        {isCurrent ? 'Current recorded stage' : isCompleted ? 'Earlier stage in the configured process' : safeIdx < 0 ? 'No stage transition inferred' : 'Later stage'}
+                      </div>
+                    </div>
+                    {isCurrent && <span className="tag">CURRENT</span>}
                   </div>
-                  <span className={'risk ' + riskLevel(sr).toLowerCase()}>{riskLevel(sr)}</span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
           <div className="panel">
-            <div className="panelhead">
-              <div>
-                <div className="paneltitle">Stage Risk Analysis</div>
-                <div className="muted">Comparative risk by stage</div>
-              </div>
+            <div className="paneltitle">Stage-level Risk</div>
+            <div className="muted" style={{ marginTop: 10, lineHeight: 1.7 }}>
+              No independently validated stage-level risk model is deployed. GEOMATRIX therefore does not assign fixed risk scores to acquisition stages.
             </div>
-            <div className="chart" style={{ height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={[
-                  { stage: 'Notification', risk: 18 }, { stage: 'Objections', risk: 43 },
-                  { stage: 'Compensation', risk: 92 }, { stage: 'Award', risk: 76 },
-                  { stage: 'Possession', risk: 58 }, { stage: 'R&R', risk: 62 }, { stage: 'Legal', risk: 71 }
-                ]} margin={{ top: 5, right: 20, bottom: 30, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                  <XAxis dataKey="stage" fontSize={10} tick={{ fill: 'var(--chart-text)' }} angle={-25} textAnchor="end" />
-                  <YAxis fontSize={10} tick={{ fill: 'var(--chart-text)' }} domain={[0, 100]} />
-                  <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12 }} />
-                  <ReferenceLine y={75} stroke="#dc2626" strokeDasharray="4 4" />
-                  <Bar dataKey="risk" radius={[4, 4, 0, 0]}>
-                    {[18, 43, 92, 76, 58, 62, 71].map((r, i) => (
-                      <Cell key={i} fill={RISK_COLORS[riskLevel(r)]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div style={{ marginTop: 22, padding: 18, borderRadius: 10, background: 'var(--bg)', border: '1px dashed var(--line)', textAlign: 'center' }}>
+              <div style={{ fontSize: 30, fontWeight: 900, color: riskColor }}>
+                {riskScore == null ? '—' : riskScore.toFixed(1)}
+              </div>
+              <div className="muted">Current project risk score / 100</div>
+              <div style={{ marginTop: 7, fontSize: 12 }}>
+                {riskScore == null ? 'No validated project prediction recorded' : `Current level: ${rl}`}
+              </div>
             </div>
           </div>
         </div>
@@ -750,11 +742,11 @@ export default function ProjectRiskIntelligence() {
             </div>
             <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
               {([
-                ['Data Source', p.source_name || (p.source_url ? 'External Ingestion Pipeline' : 'Geomatrix Central Repository')],
-                ['Last Updated', p.updated_at ? new Date(p.updated_at).toLocaleDateString('en-IN') : (p.imported_at ? new Date(p.imported_at).toLocaleDateString('en-IN') : 'Recent')],
-                ['Validation Status', p.validation_status ?? 'Validated'],
-                ['Data Classification', p.data_classification ?? 'Real Project Data'],
-                ['Document Completeness', `${p.doc_completeness_pct ?? 85}%`],
+                ['Data Source', p.source_name || (p.source_url ? 'External ingestion source' : 'Not recorded')],
+                ['Last Updated', p.updated_at ? new Date(p.updated_at).toLocaleDateString('en-IN') : (p.imported_at ? new Date(p.imported_at).toLocaleDateString('en-IN') : 'Not recorded')],
+                ['Validation Status', p.validation_status ?? 'Not recorded'],
+                ['Data Classification', p.data_classification ?? 'Not recorded'],
+                ['Document Completeness', p.doc_completeness_pct == null ? 'Not recorded' : `${p.doc_completeness_pct}%`],
                 ['Model Confidence', confidence != null ? `${(confidence * 100).toFixed(1)}%` : 'Pending prediction'],
               ] as [string, string][]).map(([k, v]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
@@ -776,12 +768,12 @@ export default function ProjectRiskIntelligence() {
             <div style={{ marginTop: 16 }}>
               <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600 }}>
                 <span>Data Completeness</span>
-                <span style={{ color: (p.doc_completeness_pct ?? 85) >= 80 ? 'var(--green)' : 'var(--amber)' }}>
-                  {p.doc_completeness_pct ?? 85}%
+                <span style={{ color: p.doc_completeness_pct != null && p.doc_completeness_pct >= 80 ? 'var(--green)' : 'var(--amber)' }}>
+                  {p.doc_completeness_pct}%
                 </span>
               </div>
               <div style={{ height: 10, background: 'var(--line)', borderRadius: 5, overflow: 'hidden' }}>
-                <div style={{ width: `${p.doc_completeness_pct ?? 85}%`, height: '100%', background: (p.doc_completeness_pct ?? 85) >= 80 ? 'var(--green)' : 'var(--amber)', borderRadius: 5, transition: 'width 0.6s ease' }} />
+                <div style={{ width: `${p.doc_completeness_pct != null ?? 0}%`, height: '100%', background: (p.doc_completeness_pct ?? 85) >= 80 ? 'var(--green)' : 'var(--amber)', borderRadius: 5, transition: 'width 0.6s ease' }} />
               </div>
             </div>
           </div>
@@ -845,7 +837,7 @@ export default function ProjectRiskIntelligence() {
             <h3 style={{ margin: '0 0 6px', fontWeight: 800 }}>Assign Intervention</h3>
             <p className="sub" style={{ marginBottom: 18 }}>
               Record an intervention for <strong>{p.name}</strong>.
-              &nbsp;<em style={{ fontSize: 11 }}>Prototype only.</em>
+              &nbsp;<em style={{ fontSize: 11 }}>Workflow recording requires a connected task endpoint.</em>
             </p>
             <div className="form">
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>Assigned Officer / Unit</label>
