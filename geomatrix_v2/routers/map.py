@@ -39,13 +39,9 @@ def get_geojson(
     features = []
     for idx, project in enumerate(projects):
         lat, lng = project.latitude, project.longitude
-        # Only use deterministic state centroid when coordinates are genuinely absent.
+        # Never invent project coordinates. Unlocated projects are omitted from GIS output.
         if lat is None or lng is None:
-            base_lat, base_lng = STATE_COORDINATES.get(
-                (project.state or "").strip().lower(), DEFAULT_COORDS
-            )
-            lat = base_lat + ((idx % 5) - 2) * 0.15
-            lng = base_lng + ((idx // 5) % 5 - 2) * 0.15
+            continue
 
         features.append(
             GeoFeature(
