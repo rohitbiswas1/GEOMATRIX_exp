@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? '';
+function backendUrl(): string {
+  const url = (process.env.MODEL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '').trim();
+  if (!url) throw new Error('Backend API is not configured. Set MODEL_API_URL.');
+  return url.replace(/\/+$/, '');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,7 +22,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const upstream = await fetch(`${BACKEND}/api/gemini/explain`, {
+    const upstream = await fetch(`${backendUrl()}/api/gemini/explain`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
