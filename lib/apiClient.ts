@@ -1,31 +1,34 @@
 /**
  * Geomatrix API Client
- * Typed fetch client for all FastAPI backend calls.
- * Uses NEXT_PUBLIC_API_URL (default: http://127.0.0.1:8000).
- * All functions here are the real-data replacements for lib/data.ts exports.
+ * Browser calls use same-origin Next.js API routes.
+ * Server-side calls may use NEXT_PUBLIC_API_URL when explicitly configured.
  */
 
-const BASE = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000');
+const BASE =
+  typeof window !== 'undefined'
+    ? ''
+    : (process.env.NEXT_PUBLIC_API_URL ?? '');
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...init?.headers },
     ...init,
   });
+
   if (!res.ok) {
     const body = await res.text();
-    throw new ApiError(res.status, body);
+    throw new ApiError(res.status, body || `Request failed with status ${res.status}`);
   }
+
   return res.json() as Promise<T>;
 }
 
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
+    this.name = 'ApiError';
   }
 }
-
-// ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface ApiProject {
   id: string;
@@ -43,7 +46,6 @@ export interface ApiProject {
   affected_families: number;
   current_stage?: string;
   status?: string;
-  // Extended prediction fields
   compensation_status?: string;
   objection_count?: number;
   legal_case_count?: number;
@@ -54,14 +56,12 @@ export interface ApiProject {
   doc_completeness_pct?: number;
   approval_pending?: boolean;
   overdue_milestones?: number;
-  // ML outputs
   risk_score?: number;
   risk_level?: string;
   delay_probability?: number;
   predicted_delay_days?: number;
   confidence?: number;
   primary_driver?: string;
-  // Provenance
   source_url?: string;
   source_name?: string;
   source_record_id?: string;
@@ -109,13 +109,13 @@ export interface ShapFeature {
 
 export interface PredictionResult {
   status: string;
-  risk_score: number;
-  risk_level: string;
-  delay_probability: number;
-  predicted_delay_days?: number;
-  confidence: number;
-  model_run_id?: string;
-  model_version?: string;
+  risk_score: number | null;
+  risk_level: string | null;
+  delay_probability: number | null;
+  predicted_delay_days?: number | null;
+  confidence: number | null;
+  model_run_id?: string | null;
+  model_version?: string | null;
   message: string;
   shap_features: ShapFeature[];
 }
@@ -128,7 +128,7 @@ export interface DashboardSummary {
   low_count: number;
   total_land_ha: number;
   total_families: number;
-  avg_risk_score?: number;
+  avg_risk_score?: number | null;
   alerts_open: number;
   data_available: boolean;
   message: string;
@@ -169,15 +169,16 @@ export interface IngestionLogEntry {
 
 export interface ModelStatus {
   trained: boolean;
-  algorithm?: string;
-  trained_at?: string;
-  n_samples?: number;
-  precision?: number;
-  recall?: number;
-  f1_score?: number;
-  roc_auc?: number;
-  rmse?: number;
-  feature_names?: string[];
+  algorithm?: string | null;
+  trained_at?: string | null;
+  n_samples?: number | null;
+  precision?: number | null;
+  recall?: number | null;
+  f1_score?: number | null;
+  roc_auc?: number | null;
+  rmse?: number | null;
+  feature_names?: string[] | null;
+  model_version?: string | null;
   message: string;
 }
 
@@ -193,7 +194,7 @@ export interface TrainResponse {
   success: boolean;
   message: string;
   model_run_id?: string;
-  metrics?: Record<string, number>;
+  metrics?: Record<string, number | null>;
 }
 
 export interface GeoJsonFeatureCollection {
@@ -212,8 +213,6 @@ export interface ProjectValidation {
   message: string;
 }
 
-// ── Project endpoints ──────────────────────────────────────────────────────────
-
 export async function fetchProjects(params?: {
   state?: string;
   district?: string;
@@ -231,7 +230,7 @@ export async function fetchProjects(params?: {
 }
 
 export async function fetchProject(id: string): Promise<ApiProject> {
-  return apiFetch<ApiProject>(`/api/projects/${id}`);
+  return apiFetch<ApiProject>(`/api/projects/${encodeURIComponent(id)}`);
 }
 
 export async function createProject(data: ProjectCreatePayload): Promise<ApiProject> {
@@ -242,63 +241,57 @@ export async function createProject(data: ProjectCreatePayload): Promise<ApiProj
 }
 
 export async function updateProject(id: string, data: Partial<ProjectCreatePayload>): Promise<ApiProject> {
-  return apiFetch<ApiProject>(`/api/projects/${id}`, {
+  return apiFetch<ApiProject>(`/api/projects/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  await fetch(`${BASE}/api/projects/${id}`, { method: 'DELETE' });
+  const res = await fetch(`${BASE}/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) {
+    throw new ApiError(res.status, await res.text());
+  }
 }
 
 export async function validateProject(id: string): Promise<ProjectValidation> {
-  return apiFetch<ProjectValidation>(`/api/projects/${id}/validate`);
+  return apiFetch<ProjectValidation>(`/api/projects/${encodeURIComponent(id)}/validate`);
 }
 
 export async function runPrediction(projectId: string): Promise<{ project_id: string; prediction: PredictionResult }> {
-  return apiFetch(`/api/projects/${projectId}/predict-risk`, { method: 'POST' });
+  return apiFetch(`/api/projects/${encodeURIComponent(projectId)}/predict-risk`, { method: 'POST' });
 }
 
 export async function fetchExplanation(projectId: string): Promise<{ project_id: string; shap_features: ShapFeature[] }> {
-  return apiFetch(`/api/projects/${projectId}/explain`);
+  return apiFetch(`/api/projects/${encodeURIComponent(projectId)}/explain`);
 }
-
-// ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export async function fetchDashboardSummary(): Promise<DashboardSummary> {
   return apiFetch<DashboardSummary>('/api/projects/dashboard-summary');
 }
 
-// ── Alerts ────────────────────────────────────────────────────────────────────
-
 export async function fetchAlerts(status = 'Open', limit = 100): Promise<ApiAlert[]> {
-  return apiFetch<ApiAlert[]>(`/api/alerts?status=${status}&limit=${limit}`);
+  return apiFetch<ApiAlert[]>(`/api/alerts?status=${encodeURIComponent(status)}&limit=${limit}`);
 }
 
 export async function fetchAlertsSummary() {
   return apiFetch<{ total: number; open: number; critical: number; high: number }>('/api/alerts/summary');
 }
 
-// ── GIS Map ───────────────────────────────────────────────────────────────────
-
 export async function fetchGeojson(riskLevel?: string): Promise<GeoJsonFeatureCollection> {
-  const qs = riskLevel ? `?risk_level=${riskLevel}` : '';
+  const qs = riskLevel ? `?risk_level=${encodeURIComponent(riskLevel)}` : '';
   return apiFetch<GeoJsonFeatureCollection>(`/api/map/geojson${qs}`);
 }
-
-// ── Data Ingestion ────────────────────────────────────────────────────────────
 
 export async function uploadFile(file: File, dataType: 'projects' | 'historical'): Promise<IngestResult> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${BASE}/api/ingest/upload?data_type=${dataType}`, {
+  const res = await fetch(`${BASE}/api/ingest/upload?data_type=${encodeURIComponent(dataType)}`, {
     method: 'POST',
     body: form,
   });
   if (!res.ok) {
-    const body = await res.text();
-    throw new ApiError(res.status, body);
+    throw new ApiError(res.status, await res.text());
   }
   return res.json() as Promise<IngestResult>;
 }
@@ -306,8 +299,6 @@ export async function uploadFile(file: File, dataType: 'projects' | 'historical'
 export async function fetchIngestionLog(limit = 20): Promise<IngestionLogEntry[]> {
   return apiFetch<IngestionLogEntry[]>(`/api/ingest/log?limit=${limit}`);
 }
-
-// ── Model ─────────────────────────────────────────────────────────────────────
 
 export async function fetchModelStatus(): Promise<ModelStatus> {
   return apiFetch<ModelStatus>('/api/model/status');
@@ -318,25 +309,16 @@ export async function fetchTrainingDataSummary(): Promise<TrainingDataSummary> {
 }
 
 export async function trainModel(algorithm: 'RandomForest' | 'XGBoost' = 'RandomForest'): Promise<TrainResponse> {
-  return apiFetch<TrainResponse>(`/api/model/train?algorithm=${algorithm}`, { method: 'POST' });
+  return apiFetch<TrainResponse>(`/api/model/train?algorithm=${encodeURIComponent(algorithm)}`, { method: 'POST' });
 }
-
-// ── Gemini (server-side proxy route in Next.js) ───────────────────────────────
 
 export async function explainWithGemini(payload: {
   project: Record<string, unknown>;
   prediction?: Record<string, unknown>;
   shap_features?: ShapFeature[];
 }): Promise<{ status: string; label: string; summary: string; source: string }> {
-  // Calls the Next.js server-side API route which proxies to FastAPI
-  const res = await fetch('/api/gemini/explain', {
+  return apiFetch('/api/gemini/explain', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new ApiError(res.status, body);
-  }
-  return res.json();
 }
