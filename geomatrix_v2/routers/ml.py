@@ -1,12 +1,13 @@
-"""Geomatrix v2 ML Model Router"""
-import uuid
+"""ML model status and training endpoints."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models import HistoricalDelayRecord, ModelRun
-from ml.train import train_model, InsufficientDataError
+from ml.features import REGRESSION_LABEL
+from ml.train import InsufficientDataError, train_model
 from ml.evaluate import get_model_status
 
 router = APIRouter(prefix="/api/model", tags=["model"])
@@ -15,35 +16,36 @@ logger = logging.getLogger(__name__)
 
 @router.get("/status")
 def model_status():
-    """Return current model training status and metrics."""
-    status = get_model_status()
-    if not status.get("trained"):
-        status["message"] = "Model not trained — insufficient real labeled data."
-    return status
+    return get_model_status()
 
 
 @router.get("/training-data")
 def get_training_data(db: Session = Depends(get_db)):
-    """Return count and summary of available labeled training records."""
-    total = db.query(HistoricalDelayRecord).count()
-    delayed = db.query(HistoricalDelayRecord).filter_by(delayed=True).count()
-    on_time = total - delayed
+    real_records = db.query(HistoricalDelayRecord).filter(
+        HistoricalDelayRecord.data_classification.in_([None, "REAL", "real"])
+    ).all()
+    total = len(real_records)
+    delayed = sum(1 for r in real_records if r.delayed is True)
+    on_time = sum(1 for r in real_records if r.delayed is False)
+    ready = total >= 10 and delayed > 0 and on_time > 0
+    message = (
+        f"{total} real labeled records available ({delayed} delayed, {on_time} on-time)."
+        if total
+        else "No real historical records yet. Upload a labeled CSV via Data Ingestion."
+    )
+    if total >= 10 and (delayed == 0 or on_time == 0):
+        message += " Training remains blocked until both delay classes are present."
     return {
         "total_records": total,
         "delayed_count": delayed,
         "on_time_count": on_time,
-        "ready_to_train": total >= 10,
-        "message": (
-            f"{total} labeled records available ({delayed} delayed, {on_time} on-time)."
-            if total > 0
-            else "No historical records yet. Upload a labeled CSV via Data Ingestion."
-        )
+        "ready_to_train": ready,
+        "message": message,
     }
 
 
 @router.get("/runs")
 def list_model_runs(db: Session = Depends(get_db)):
-    """List all model training runs."""
     runs = db.query(ModelRun).order_by(ModelRun.trained_at.desc()).limit(20).all()
     return [
         {
@@ -63,12 +65,17 @@ def list_model_runs(db: Session = Depends(get_db)):
 
 
 @router.post("/train")
-def trigger_training(algorithm: str = "RandomForest", db: Session = Depends(get_db)):
-    """
-    Train the ML model on all available real labeled historical records.
-    Refuses if fewer than 10 real labeled records exist.
-    """
-    records = db.query(HistoricalDelayRecord).all()
+def trigger_training(
+    algorithm: str = Query("RandomForest"),
+    db: Session = Depends(get_db),
+):
+    if algorithm not in {"RandomForest", "XGBoost"}:
+        raise HTTPException(400, "algorithm must be RandomForest or XGBoost")
+
+    records = db.query(HistoricalDelayRecord).filter(
+        HistoricalDelayRecord.data_classification.in_([None, "REAL", "real"])
+    ).all()
+
     record_dicts = [
         {
             "land_area_ha": r.land_area_ha,
@@ -79,23 +86,24 @@ def trigger_training(algorithm: str = "RandomForest", db: Session = Depends(get_
             "approval_pending": r.approval_pending,
             "rr_pending": r.rr_pending,
             "overdue_milestones": r.overdue_milestones,
-            "actual_delay_days": r.actual_delay_days,
+            "actual_delay_days": getattr(r, REGRESSION_LABEL, None),
             "delayed": r.delayed,
+            "data_classification": r.data_classification,
         }
         for r in records
     ]
 
     try:
         meta = train_model(record_dicts, algorithm=algorithm)
-    except InsufficientDataError as e:
-        raise HTTPException(400, str(e))
-    except Exception as e:
-        logger.error(f"Training error: {e}", exc_info=True)
-        raise HTTPException(500, f"Training failed: {str(e)}")
+    except InsufficientDataError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        logger.error("Training failed: %s", exc, exc_info=True)
+        raise HTTPException(500, "Training failed. Check server logs for details.") from exc
 
-    # Deactivate old runs
     db.query(ModelRun).filter_by(is_active=True).update({"is_active": False})
-
     run = ModelRun(
         id=meta["run_id"],
         algorithm=meta["algorithm"],
@@ -126,6 +134,6 @@ def trigger_training(algorithm: str = "RandomForest", db: Session = Depends(get_
             "f1_score": round(meta["f1_score"], 3),
             "roc_auc": round(meta["roc_auc"], 3),
             "accuracy": round(meta["accuracy"], 3),
-            "rmse": round(meta["rmse"], 1),
+            "rmse": None if meta.get("rmse") is None else round(meta["rmse"], 1),
         },
     }
