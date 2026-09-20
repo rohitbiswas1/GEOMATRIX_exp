@@ -4,9 +4,9 @@ import json
 
 from fastapi.testclient import TestClient
 
-from database import Base, engine
-from main import app
-import ml.train as train_module
+from geomatrix_v2.database import Base, engine
+from geomatrix_v2.main import app
+import geomatrix_v2.ml.train as train_module
 
 
 def _project_row(index: int) -> dict:
@@ -62,7 +62,7 @@ def test_real_upload_training_prediction_and_shap_persisted(tmp_path, monkeypatc
     db_path = tmp_path / "pipeline.db"
     model_dir = tmp_path / "model_artifacts"
     model_dir.mkdir()
-    monkeypatch.setattr("database.DATABASE_URL", f"sqlite:///{db_path}")
+    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
     monkeypatch.setattr(train_module, "MODEL_DIR", str(model_dir))
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
