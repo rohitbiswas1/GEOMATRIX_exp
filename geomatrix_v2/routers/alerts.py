@@ -2,9 +2,9 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models import Alert, Project
-from ..schemas import AlertOut
+from database import get_db
+from models import Alert, Project
+from schemas import AlertOut
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
