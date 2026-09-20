@@ -6,6 +6,7 @@
     },
     "backend": {
       "root": "geomatrix_v2",
+      "framework": "fastapi",
       "entrypoint": "vercel_app:app"
     }
   },
