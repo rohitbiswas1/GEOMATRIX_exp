@@ -12,15 +12,15 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from database import DATABASE_URL, engine, init_db
-from .routers.alerts import router as alerts_router
-from .routers.audit import router as audit_router
-from .routers.analytics import router as analytics_router
-from .routers.auth import router as auth_router
-from .routers.gemini import router as gemini_router
-from .routers.ingest import router as ingest_router
-from .routers.map import router as map_router
-from .routers.ml import router as ml_router
-from .routers.projects import router as projects_router
+from routers.alerts import router as alerts_router
+from routers.audit import router as audit_router
+from routers.analytics import router as analytics_router
+from routers.auth import router as auth_router
+from routers.gemini import router as gemini_router
+from routers.ingest import router as ingest_router
+from routers.map import router as map_router
+from routers.ml import router as ml_router
+from routers.projects import router as projects_router
 from security import is_production, verify_session_token
 
 app = FastAPI(
