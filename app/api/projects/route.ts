@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000';
+function backendUrl(): string {
+  const url = (process.env.MODEL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '').trim();
+  if (!url) throw new Error('Backend API is not configured. Set MODEL_API_URL.');
+  return url.replace(/\/+$/, '');
+}
 
 async function readJsonPayload(res: Response) {
   const text = await res.text();
@@ -15,7 +19,7 @@ async function readJsonPayload(res: Response) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const qs = searchParams.toString();
-  const upstream = await fetch(`${BACKEND}/api/projects${qs ? `?${qs}` : ''}`, {
+  const upstream = await fetch(`${backendUrl()}/api/projects${qs ? `?${qs}` : ''}`, {
     headers: { Accept: 'application/json' },
   });
   const payload = await readJsonPayload(upstream);
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
     body = {};
   }
 
-  const upstream = await fetch(`${BACKEND}/api/projects`, {
+  const upstream = await fetch(`${backendUrl()}/api/projects`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
