@@ -1,34 +1,21 @@
-"""Vercel service entrypoint for the GEOMATRIX FastAPI backend.
-
-The Vercel service root is geomatrix_v2/, so we create the package namespace
-explicitly and load main.py with package semantics. This keeps relative imports
-working in both local development and the Vercel service runtime.
-"""
-import importlib.util
+"""Vercel service entrypoint for the GEOMATRIX FastAPI backend."""
+import importlib
 import sys
 import types
+from importlib.machinery import ModuleSpec
 from pathlib import Path
 
 SERVICE_ROOT = Path(__file__).resolve().parent
 
+# The Vercel service root is geomatrix_v2/, so Python does not automatically
+# see that directory as the parent package. Register a lightweight package
+# namespace whose search path is the service root, then import main normally.
 package = sys.modules.get("geomatrix_v2")
 if package is None:
     package = types.ModuleType("geomatrix_v2")
     package.__path__ = [str(SERVICE_ROOT)]
+    package.__package__ = "geomatrix_v2"
+    package.__spec__ = ModuleSpec("geomatrix_v2", loader=None, is_package=True)
     sys.modules["geomatrix_v2"] = package
 
-module_name = "geomatrix_v2.main"
-module = sys.modules.get(module_name)
-if module is None:
-    spec = importlib.util.spec_from_file_location(
-        module_name,
-        SERVICE_ROOT / "main.py",
-        submodule_search_locations=[],
-    )
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Unable to load GEOMATRIX FastAPI entrypoint.")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-
-app = module.app
+app = importlib.import_module("geomatrix_v2.main").app
