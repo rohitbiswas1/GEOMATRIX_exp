@@ -664,6 +664,8 @@ export default function ProjectRiskIntelligence() {
               GEOMATRIX does not display invented project precedents, intervention outcomes or days saved.
             </div>
           </div>
+        </div>
+      )}
       {/* ══════════════════════════════════════════════════════════════════════
           TAB: Acquisition Pipeline
       ══════════════════════════════════════════════════════════════════════ */}
