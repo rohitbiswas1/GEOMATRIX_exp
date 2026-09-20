@@ -96,7 +96,8 @@ def test_real_upload_training_prediction_and_shap_persisted(tmp_path, monkeypatc
     prediction = prediction_response.json()["prediction"]
     assert prediction["status"] == "ok"
     assert 0.0 <= prediction["delay_probability"] <= 1.0
-    assert prediction["predicted_delay_days"] is None
+    assert isinstance(prediction["predicted_delay_days"], int)
+    assert prediction["predicted_delay_days"] >= 0
     assert prediction["shap_features"]
 
     explanation_response = client.get(f"/api/projects/{project_id}/explain")
