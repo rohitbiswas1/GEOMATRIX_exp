@@ -217,6 +217,23 @@ export interface GeoJsonFeatureCollection {
   }>;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  actor_email?: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  previous_value?: Record<string, unknown> | null;
+  new_value?: Record<string, unknown> | null;
+  request_id?: string | null;
+  timestamp: string;
+}
+
+export async function fetchProjectAudit(projectId: string): Promise<AuditLogEntry[]> {
+  const qs = new URLSearchParams({ entity_type: 'PROJECT', entity_id: projectId });
+  return apiFetch<AuditLogEntry[]>(`/api/audit?${qs.toString()}`);
+}
+
 export interface ProjectAction {
   id: string;
   project_id: string;
