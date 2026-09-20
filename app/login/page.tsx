@@ -134,9 +134,43 @@ export default function Login() {
     document.head.appendChild(script);
   }, [isGoogleAuthReady, googleClientId, router, effectiveTheme]);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError('Password authentication is disabled. Use the configured identity provider.');
+    setError('');
+
+    if (!email.trim() || !password) {
+      setError('Enter your email address and password.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/backend/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || data.detail || 'Sign-in failed.');
+      }
+
+      sessionStorage.setItem(
+        'geomatrix-auth',
+        JSON.stringify({
+          provider: 'password',
+          email: data.email,
+          name: data.name,
+          signedInAt: new Date().toISOString(),
+        })
+      );
+      router.push('/dashboard');
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : 'Sign-in failed.');
+    } finally {
+      setIsLoading(false);
+    }
   }
 
 
