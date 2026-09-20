@@ -168,10 +168,10 @@ export default function ProjectRiskIntelligence() {
 
   // ── Derived display values ───────────────────────────────────────────────
   const riskScore = prediction?.risk_score ?? p?.risk_score;
-  const riskLevelStr = (prediction?.risk_level ?? p?.risk_level ?? 'Low') as RiskLevel;
+  const riskLevelStr = riskScore != null ? (prediction?.risk_level ?? p?.risk_level ?? riskLevel(riskScore)) as RiskLevel : null;
   const rl = riskLevelStr;
-  const riskColor = RISK_COLORS[rl];
-  const riskBg = RISK_BG[rl];
+  const riskColor = rl ? RISK_COLORS[rl] : 'var(--muted)';
+  const riskBg = rl ? RISK_BG[rl] : 'var(--line)';
   const delayProb = prediction?.delay_probability ?? p?.delay_probability;
   const confidence = prediction?.confidence ?? p?.confidence;
   const factors = shapFeatures.length > 0 ? shapFeatures.map(f => ({
@@ -234,7 +234,7 @@ export default function ProjectRiskIntelligence() {
       ['Project Name', p.name, `${p.project_type} corridor`],
       ['Administrative Region', `${p.district}, ${p.state}`, `${p.authority}`],
       ['Current Stage', p.current_stage ?? '', 'Statutory milestone under RFCTLARR 2013'],
-      ['AI Risk Score', riskScore != null ? `${riskScore.toFixed(1)} / 100` : 'Not predicted', `Classification: ${rl}`],
+      ['AI Risk Score', riskScore != null ? `${riskScore.toFixed(1)} / 100` : 'Not predicted', `Classification: ${rl ?? 'Not scored'}`],
       ['Delay Probability', delayProb != null ? `${(delayProb * 100).toFixed(1)}%` : 'Not predicted', 'Estimated delay probability'],
       ['Primary Delay Driver', p.primary_driver ?? '', 'Key bottleneck identified by AI surveillance'],
       ['Affected Families', `${p.affected_families} Families`, 'R&R entitlement register'],
@@ -491,7 +491,7 @@ export default function ProjectRiskIntelligence() {
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: riskColor, marginTop: 5, flexShrink: 0 }} />
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>
-                        Risk scored at {riskScore?.toFixed(1)} / 100 · {rl}
+                        {riskScore != null && rl ? <>Risk scored at {riskScore.toFixed(1)} / 100 · {rl}</> : 'No risk score recorded'}
                       </div>
                       <div style={{ fontSize: 12, marginTop: 2 }}>
                         Predicted on {new Date().toLocaleDateString('en-IN')} · Confidence: {confidence != null ? `${(confidence * 100).toFixed(0)}%` : '—'}
