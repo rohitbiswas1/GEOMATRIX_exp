@@ -117,6 +117,7 @@ class ShapFeature(BaseModel):
     feature_value: Optional[float] = None
 
 class ModelStatusOut(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     trained: bool
     algorithm: Optional[str] = None
     trained_at: Optional[str] = None
