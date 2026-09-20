@@ -176,9 +176,20 @@ export interface ModelStatus {
   recall?: number | null;
   f1_score?: number | null;
   roc_auc?: number | null;
+  accuracy?: number | null;
   rmse?: number | null;
   feature_names?: string[] | null;
+  feature_importance?: Record<string, number> | null;
+  cv_folds?: number | null;
+  cv_roc_auc_mean?: number | null;
+  cv_roc_auc_std?: number | null;
+  cv_f1_mean?: number | null;
+  cv_f1_std?: number | null;
+  n_unique_classes?: number | null;
+  class_counts?: Record<string, number> | null;
   model_version?: string | null;
+  dataset_fingerprint?: string | null;
+  regression_target_available?: boolean | null;
   message: string;
 }
 
