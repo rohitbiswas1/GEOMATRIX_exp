@@ -2,9 +2,10 @@
 import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
+from ..audit import write_audit
 from ..database import get_db
 from ..models import HistoricalDelayRecord, ModelRun
 from ..ml.train import InsufficientDataError, train_model
@@ -80,6 +81,7 @@ def list_model_runs(db: Session = Depends(get_db)):
 @router.post("/train")
 def trigger_training(
     algorithm: str = Query("RandomForest"),
+    request: Request = None,
     db: Session = Depends(get_db),
 ):
     _require_runtime_training_enabled()
@@ -136,6 +138,15 @@ def trigger_training(
             notes="Validated on explicitly approved real historical records.",
             is_active=True,
         )
+    )
+    write_audit(
+        db,
+        actor_email=getattr(request.state, "user", {}).get("email") if request is not None and getattr(request.state, "user", None) else None,
+        action="TRAIN_MODEL",
+        entity_type="MODEL",
+        entity_id=meta["run_id"],
+        new_value={"algorithm": meta["algorithm"], "n_samples": meta["n_samples"], "dataset_fingerprint": meta["dataset_fingerprint"]},
+        request_id=getattr(request.state, "request_id", None) if request is not None else None,
     )
     db.commit()
     return {
