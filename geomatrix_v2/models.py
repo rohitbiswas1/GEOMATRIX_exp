@@ -140,3 +140,15 @@ class DataIngestionLog(Base):
     errors = Column(JSON)
     error_message = Column(Text)
     status = Column(String, default="running")
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(String, primary_key=True)
+    actor_email = Column(String, nullable=True, index=True)
+    action = Column(String, nullable=False)
+    entity_type = Column(String, nullable=False)
+    entity_id = Column(String, nullable=False)
+    previous_value = Column(JSON, nullable=True)
+    new_value = Column(JSON, nullable=True)
+    request_id = Column(String, nullable=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
