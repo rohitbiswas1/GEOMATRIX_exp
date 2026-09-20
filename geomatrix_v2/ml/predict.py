@@ -1,4 +1,4 @@
-"""Prediction helpers for the deployed validated model."""
+"""Prediction using the deployed validated model."""
 import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -31,17 +31,20 @@ def predict_project_risk(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "delay_probability": None,
             "predicted_delay_days": None,
             "confidence": None,
+            "imputed_features": [],
             "model_run_id": None,
             "model_version": None,
             "prediction_generated_at": None,
         }
 
-    classifier, regressor, scaler, meta = artifacts
+    classifier, regressor, preprocessor, meta = artifacts
     try:
         vector = build_feature_vector(record)
-        X = pd.DataFrame([[vector[column] for column in FEATURE_COLUMNS]], columns=FEATURE_COLUMNS)
-        X_scaled = scaler.transform(X)
-        probabilities = classifier.predict_proba(X_scaled)[0]
+        used = list(meta["used_features"])
+        missing = [feature for feature in used if vector.get(feature) is None]
+        X = pd.DataFrame([[vector.get(feature) for feature in used]], columns=used)
+        X_transformed = preprocessor.transform(X)
+        probabilities = classifier.predict_proba(X_transformed)[0]
         classes = list(getattr(classifier, "classes_", []))
         if 1 not in classes:
             raise ValueError("Active classifier does not contain the delay class.")
@@ -50,7 +53,7 @@ def predict_project_risk(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
         predicted_delay_days = None
         if regressor is not None and bool(meta.get("regression_target_available")):
-            predicted_delay_days = max(0, int(round(float(regressor.predict(X_scaled)[0]))))
+            predicted_delay_days = max(0, int(round(float(regressor.predict(X_transformed)[0]))))
 
         now = datetime.utcnow().isoformat()
         return {
@@ -60,10 +63,14 @@ def predict_project_risk(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "delay_probability": round(delay_probability, 4),
             "predicted_delay_days": predicted_delay_days,
             "confidence": round(certainty, 4),
+            "imputed_features": missing,
             "model_run_id": meta.get("run_id"),
             "model_version": meta.get("model_version"),
             "prediction_generated_at": now,
-            "message": "Prediction generated from the deployed validated model.",
+            "message": (
+                "Prediction generated from the deployed validated model."
+                + (f" Missing source fields were imputed by the approved training pipeline: {', '.join(missing)}." if missing else "")
+            ),
         }
     except Exception as exc:
         logger.error("Prediction failed", exc_info=True)
@@ -75,6 +82,7 @@ def predict_project_risk(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "delay_probability": None,
             "predicted_delay_days": None,
             "confidence": None,
+            "imputed_features": [],
             "model_run_id": None,
             "model_version": None,
             "prediction_generated_at": None,
