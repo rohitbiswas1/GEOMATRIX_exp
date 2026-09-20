@@ -1,7 +1,8 @@
-"""Geomatrix v2 Projects Router"""
+"""Project CRUD, validation and ML prediction endpoints."""
 import uuid
 from datetime import datetime
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -16,22 +17,19 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
 def _project_to_record(p: Project) -> dict:
-    """Convert a Project ORM object to a feature record dict."""
     return {
-        # Core fields
-        "land_area_ha": p.land_required or 0,
-        "land_required": p.land_required or 0,
-        "affected_families": p.affected_families or 0,
-        # Real stored prediction inputs
-        "pending_claims": p.objection_count or 0,
-        "objection_count": p.objection_count or 0,
-        "legal_cases": p.legal_case_count or 0,
-        "legal_case_count": p.legal_case_count or 0,
-        "doc_completeness_pct": p.doc_completeness_pct if p.doc_completeness_pct is not None else 50.0,
-        "approval_pending": p.approval_pending or False,
+        "land_area_ha": p.land_required,
+        "land_required": p.land_required,
+        "affected_families": p.affected_families,
+        "pending_claims": p.objection_count,
+        "objection_count": p.objection_count,
+        "legal_cases": p.legal_case_count,
+        "legal_case_count": p.legal_case_count,
+        "doc_completeness_pct": p.doc_completeness_pct,
+        "approval_pending": p.approval_pending,
         "rr_pending": p.rr_status,
         "rr_status": p.rr_status,
-        "overdue_milestones": p.overdue_milestones or 0,
+        "overdue_milestones": p.overdue_milestones,
         "compensation_status": p.compensation_status,
         "compensation_pending": p.compensation_status,
         "env_clearance_status": p.env_clearance_status,
@@ -43,42 +41,21 @@ def _project_to_record(p: Project) -> dict:
 
 @router.get("/dashboard-summary", response_model=DashboardSummary)
 def dashboard_summary(db: Session = Depends(get_db)):
-    """Return real counts for the dashboard from database records."""
     total = db.query(Project).count()
-    if total == 0:
-        return DashboardSummary(
-            total_projects=0, critical_count=0, high_count=0,
-            medium_count=0, low_count=0, total_land_ha=0.0,
-            total_families=0, avg_risk_score=None, alerts_open=0,
-            data_available=False, message="No projects in database yet."
-        )
-
-    critical = db.query(Project).filter(Project.risk_level == "Critical").count()
-    high = db.query(Project).filter(Project.risk_level == "High").count()
-    medium = db.query(Project).filter(Project.risk_level == "Medium").count()
-    low = db.query(Project).filter(Project.risk_level == "Low").count()
-
     projects = db.query(Project).all()
-    total_land = sum((p.land_required or 0) for p in projects)
-    total_families = sum((p.affected_families or 0) for p in projects)
-
     scored = [p.risk_score for p in projects if p.risk_score is not None]
-    avg_risk = round(sum(scored) / len(scored), 1) if scored else None
-
-    alerts_open = db.query(Alert).filter(Alert.status == "Open").count()
-
     return DashboardSummary(
         total_projects=total,
-        critical_count=critical,
-        high_count=high,
-        medium_count=medium,
-        low_count=low,
-        total_land_ha=round(total_land, 1),
-        total_families=total_families,
-        avg_risk_score=avg_risk,
-        alerts_open=alerts_open,
-        data_available=True,
-        message=f"{total} projects loaded from database."
+        critical_count=db.query(Project).filter(Project.risk_level == "Critical").count(),
+        high_count=db.query(Project).filter(Project.risk_level == "High").count(),
+        medium_count=db.query(Project).filter(Project.risk_level == "Medium").count(),
+        low_count=db.query(Project).filter(Project.risk_level == "Low").count(),
+        total_land_ha=round(sum(p.land_required or 0 for p in projects), 1),
+        total_families=sum(p.affected_families or 0 for p in projects),
+        avg_risk_score=round(sum(scored) / len(scored), 1) if scored else None,
+        alerts_open=db.query(Alert).filter(Alert.status == "Open").count(),
+        data_available=total > 0,
+        message=f"{total} projects loaded from database." if total else "No projects in database yet.",
     )
 
 
@@ -89,7 +66,7 @@ def list_projects(
     stage: Optional[str] = Query(None),
     risk_level: Optional[str] = Query(None),
     limit: int = Query(200, ge=1, le=500),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     q = db.query(Project)
     if state:
@@ -100,7 +77,7 @@ def list_projects(
         q = q.filter(Project.current_stage.ilike(f"%{stage}%"))
     if risk_level:
         q = q.filter(Project.risk_level == risk_level)
-    return q.order_by(Project.imported_at.desc()).limit(limit).all()
+    return q.order_by(Project.updated_at.desc()).limit(limit).all()
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
@@ -116,13 +93,18 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
     existing = db.query(Project).filter_by(project_code=body.project_code).first()
     if existing:
         raise HTTPException(409, f"Project code '{body.project_code}' already exists")
+    project_data = body.model_dump(exclude_none=False)
+    # User-created projects are entered for analysis. They are not historical
+    # training records, and are not stamped as REAL unless backed by a source.
+    project_data["data_classification"] = "USER_ENTERED"
+    project_data["validation_status"] = "pending"
+    project_data.pop("source_url", None)
+    project_data.pop("source_record_id", None)
     proj = Project(
         id=str(uuid.uuid4()),
         imported_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
-        validation_status="pending",
-        data_classification="REAL",
-        **body.model_dump(exclude_none=False)
+        **project_data,
     )
     db.add(proj)
     db.commit()
@@ -154,55 +136,46 @@ def delete_project(project_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{project_id}/validate", response_model=ProjectValidation)
 def validate_project(project_id: str, db: Session = Depends(get_db)):
-    """Check which required prediction fields are missing."""
     p = db.query(Project).filter_by(id=project_id).first()
     if not p:
         raise HTTPException(404, "Project not found")
     record = _project_to_record(p)
     missing = validate_prediction_inputs(record)
-    can_predict = len(missing) == 0
-    if can_predict:
-        msg = "All required fields present — prediction can proceed."
-    else:
-        msg = f"Prediction unavailable: {len(missing)} required field(s) are missing: {', '.join(missing)}."
     return ProjectValidation(
         project_id=project_id,
         missing_fields=missing,
-        can_predict=can_predict,
-        message=msg
+        can_predict=not missing,
+        message=(
+            "All required fields present — prediction can proceed."
+            if not missing
+            else f"Prediction unavailable: missing {', '.join(missing)}."
+        ),
     )
 
 
 @router.post("/{project_id}/predict-risk")
 def predict_risk(project_id: str, db: Session = Depends(get_db)):
-    """Run ML risk prediction for a project using real stored project fields.
-    Returns 503 if model not trained or 422 if project data is incomplete.
-    """
     p = db.query(Project).filter_by(id=project_id).first()
     if not p:
         raise HTTPException(404, "Project not found")
 
-    record = _project_to_record(p)
-
-    # Validate required fields before calling the model
-    missing = validate_prediction_inputs(record)
+    missing = validate_prediction_inputs(_project_to_record(p))
     if missing:
-        raise HTTPException(
-            422,
-            f"Prediction unavailable — incomplete project data. Missing: {', '.join(missing)}"
-        )
+        raise HTTPException(422, f"Prediction unavailable — missing: {', '.join(missing)}")
 
-    result = predict_project_risk(record)
-    if result is None or result.get("status") in {"not_trained", "error"}:
-        raise HTTPException(503, "Model not trained — insufficient real labeled data.")
+    result = predict_project_risk(_project_to_record(p))
+    if not result or result.get("status") == "not_trained":
+        raise HTTPException(503, "Model not trained — insufficient valid real labeled data.")
+    if result.get("status") == "error":
+        raise HTTPException(500, result.get("message", "Prediction failed"))
 
-    shap_features = explain_project(record) or []
+    shap_features = explain_project(_project_to_record(p)) or []
 
-    p.risk_score = result["risk_score"]
-    p.risk_level = result["risk_level"]
-    p.delay_probability = result["delay_probability"]
-    p.predicted_delay_days = result["predicted_delay_days"]
-    p.confidence = result["confidence"]
+    p.risk_score = result.get("risk_score")
+    p.risk_level = result.get("risk_level")
+    p.delay_probability = result.get("delay_probability")
+    p.predicted_delay_days = result.get("predicted_delay_days")
+    p.confidence = result.get("confidence")
     p.primary_driver = result.get("model_version")
     p.updated_at = datetime.utcnow()
 
@@ -224,27 +197,27 @@ def predict_risk(project_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{project_id}/explain")
 def get_explanation(project_id: str, db: Session = Depends(get_db)):
-    """Get SHAP feature explanations for a project using real trained model."""
     p = db.query(Project).filter_by(id=project_id).first()
     if not p:
         raise HTTPException(404, "Project not found")
-
-    record = _project_to_record(p)
-    shap_features = explain_project(record)
+    shap_features = explain_project(_project_to_record(p))
     if shap_features is None:
         raise HTTPException(503, "ML model not trained. Cannot compute SHAP explanations.")
-
     return {"project_id": project_id, "shap_features": shap_features}
 
 
 @router.get("/{project_id}/predictions")
 def list_predictions(project_id: str, db: Session = Depends(get_db)):
-    """Return prediction history for a project."""
     p = db.query(Project).filter_by(id=project_id).first()
     if not p:
         raise HTTPException(404, "Project not found")
-    preds = db.query(RiskPrediction).filter_by(project_id=project_id)\
-               .order_by(RiskPrediction.predicted_at.desc()).limit(10).all()
+    preds = (
+        db.query(RiskPrediction)
+        .filter_by(project_id=project_id)
+        .order_by(RiskPrediction.predicted_at.desc())
+        .limit(10)
+        .all()
+    )
     return [
         {
             "id": pr.id,
@@ -252,6 +225,7 @@ def list_predictions(project_id: str, db: Session = Depends(get_db)):
             "risk_level": pr.risk_level,
             "delay_probability": pr.delay_probability,
             "confidence": pr.confidence,
+            "predicted_delay_days": pr.predicted_delay_days,
             "predicted_at": pr.predicted_at.isoformat() if pr.predicted_at else None,
             "model_run_id": pr.model_run_id,
         }
