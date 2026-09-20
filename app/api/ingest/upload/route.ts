@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000';
+function backendUrl(): string {
+  const url = (process.env.MODEL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '').trim();
+  if (!url) throw new Error('Backend API is not configured. Set MODEL_API_URL.');
+  return url.replace(/\/+$/, '');
+}
 
 export async function POST(req: NextRequest) {
   try {
     const dataType = req.nextUrl.searchParams.get('data_type') ?? 'projects';
     const formData = await req.formData();
 
-    const res = await fetch(`${BACKEND}/api/ingest/upload?data_type=${dataType}`, {
+    const res = await fetch(`${backendUrl()}/api/ingest/upload?data_type=${dataType}`, {
       method: 'POST',
       body: formData,
       // Do NOT set Content-Type — let fetch set the multipart boundary automatically
