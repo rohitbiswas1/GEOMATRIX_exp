@@ -1,12 +1,12 @@
 import numpy as np
 import pytest
-import ml.train as train_module
+import geomatrix_v2.ml.train as train_module
 
-from ml.evaluate import get_model_status
-from ml.explain import explain_project
-from ml.features import validate_prediction_inputs, build_feature_vector
-from ml.predict import predict_project_risk
-from ml.train import train_model, InsufficientDataError
+from geomatrix_v2.ml.evaluate import get_model_status
+from geomatrix_v2.ml.explain import explain_project
+from geomatrix_v2.ml.features import validate_prediction_inputs, build_feature_vector
+from geomatrix_v2.ml.predict import predict_project_risk
+from geomatrix_v2.ml.train import train_model, InsufficientDataError
 
 
 @pytest.fixture(autouse=True)
@@ -26,6 +26,8 @@ def _real_record(**overrides):
         "approval_pending": True,
         "rr_pending": 8,
         "overdue_milestones": 4,
+        "compensation_pending": True,
+        "env_clearance_pending": True,
         "actual_delay_days": 45,
         "delayed": True,
     }
@@ -83,7 +85,7 @@ def test_confidence_never_exceeds_unit_interval():
     fake_scaler = type("FakeScaler", (), {"transform": lambda self, X: X})()
     fake_meta = {"roc_auc": 1.5, "run_id": "r1", "model_version": "v1", "trained_at": "2026-09-19T00:00:00", "n_samples": 10}
     monkeypatch = pytest.MonkeyPatch()
-    monkeypatch.setattr("ml.predict.load_active_model", lambda: (fake_clf, None, fake_scaler, fake_meta))
+    monkeypatch.setattr("geomatrix_v2.ml.predict.load_active_model", lambda: (fake_clf, None, fake_scaler, fake_meta))
     result = predict_project_risk({"land_required": 100, "affected_families": 10, "current_stage": "In Progress"})
     monkeypatch.undo()
     assert result["status"] == "ok"
@@ -91,7 +93,13 @@ def test_confidence_never_exceeds_unit_interval():
 
 
 def test_objection_count_is_preserved_in_feature_vector():
-    vector = build_feature_vector({"objection_count": 27, "legal_case_count": 5})
+    vector = build_feature_vector({
+        "objection_count": 27, "legal_case_count": 5,
+        "land_required": 1, "affected_families": 1, "doc_completeness_pct": 100,
+        "approval_pending": False, "rr_status": "Completed", "overdue_milestones": 0,
+        "compensation_status": "Settled",
+        "env_clearance_status": "Granted", "forest_clearance_status": "Granted", "crz_status": "NA",
+    })
     assert vector["pending_claims"] == 27.0
 
 
@@ -100,7 +108,7 @@ def test_missing_actual_delay_days_makes_predicted_delay_days_unavailable():
     fake_scaler = type("FakeScaler", (), {"transform": lambda self, X: X})()
     fake_meta = {"roc_auc": 0.75, "run_id": "r2", "model_version": "v2", "trained_at": "2026-09-19T00:00:00", "n_samples": 10}
     monkeypatch = pytest.MonkeyPatch()
-    monkeypatch.setattr("ml.predict.load_active_model", lambda: (fake_clf, None, fake_scaler, fake_meta))
+    monkeypatch.setattr("geomatrix_v2.ml.predict.load_active_model", lambda: (fake_clf, None, fake_scaler, fake_meta))
     result = predict_project_risk({"land_required": 100, "affected_families": 10, "current_stage": "In Progress"})
     monkeypatch.undo()
     assert result["predicted_delay_days"] is None
