@@ -31,7 +31,7 @@ def model_status():
 def get_training_data(db: Session = Depends(get_db)):
     records = (
         db.query(HistoricalDelayRecord)
-        .filter(HistoricalDelayRecord.data_classification == "REAL")
+        .filter(HistoricalDelayRecord.data_classification == "REAL", HistoricalDelayRecord.validation_status.in_([None, "validated", "approved"]))
         .all()
     )
     total = len(records)
@@ -88,7 +88,7 @@ def trigger_training(
 
     records = (
         db.query(HistoricalDelayRecord)
-        .filter(HistoricalDelayRecord.data_classification == "REAL")
+        .filter(HistoricalDelayRecord.data_classification == "REAL", HistoricalDelayRecord.validation_status.in_([None, "validated", "approved"]))
         .all()
     )
     record_dicts = [
