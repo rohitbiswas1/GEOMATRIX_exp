@@ -8,8 +8,18 @@ from ..models import AuditLog
 router = APIRouter(prefix="/api/audit", tags=["audit"])
 
 @router.get("")
-def audit_log(limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db)):
-    rows = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit).all()
+def audit_log(
+    entity_type: str | None = Query(None),
+    entity_id: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    query = db.query(AuditLog)
+    if entity_type:
+        query = query.filter(AuditLog.entity_type == entity_type)
+    if entity_id:
+        query = query.filter(AuditLog.entity_id == entity_id)
+    rows = query.order_by(AuditLog.timestamp.desc()).limit(limit).all()
     return [
         {
             "id": row.id,
