@@ -1,5 +1,8 @@
-"""Canonical feature engineering for Geomatrix ML."""
+"""Canonical feature engineering for GEOMATRIX.
 
+No model feature is silently fabricated. Missing required values are surfaced
+and training/prediction can be blocked rather than inventing data.
+"""
 from typing import Any
 import pandas as pd
 
@@ -23,8 +26,13 @@ PREDICTION_REQUIRED_FIELDS = [
     "affected_families",
     "current_stage",
     "doc_completeness_pct",
+    "objection_count",
+    "legal_case_count",
+    "rr_status",
+    "approval_pending",
+    "overdue_milestones",
+    "compensation_status",
 ]
-
 
 def _first_present(record: dict[str, Any], *names: str):
     for name in names:
@@ -33,72 +41,67 @@ def _first_present(record: dict[str, Any], *names: str):
             return value
     return None
 
-
-def _to_float(value: Any, default: float | None = None) -> float | None:
+def _to_float(value: Any) -> float | None:
     if value is None or value == "":
-        return default
+        return None
     try:
         return float(value)
     except (TypeError, ValueError):
-        return default
+        return None
 
-
-def _to_bool01(value: Any, default: float = 0.0) -> float:
+def _to_bool01(value: Any) -> float | None:
     if isinstance(value, bool):
         return 1.0 if value else 0.0
     if value is None or value == "":
-        return default
+        return None
     text = str(value).strip().lower()
-    return 1.0 if text in {"true", "yes", "1", "pending", "disputed"} else 0.0
+    if text in {"true", "yes", "1", "pending", "disputed"}:
+        return 1.0
+    if text in {"false", "no", "0", "completed", "settled", "granted", "na"}:
+        return 0.0
+    return None
 
+def _status_pending(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    return 1.0 if str(value).strip().lower() in {"pending", "disputed"} else 0.0
 
 def build_feature_vector(record: dict[str, Any]) -> dict[str, float]:
-    land = _to_float(_first_present(record, "land_area_ha", "land_required"))
-    families = _to_float(_first_present(record, "affected_families"))
-    claims = _to_float(_first_present(record, "pending_claims", "objection_count"))
-    legal = _to_float(_first_present(record, "legal_cases", "legal_case_count"))
-    doc = _to_float(_first_present(record, "doc_completeness_pct"))
-    rr_raw = _first_present(record, "rr_pending", "rr_status")
-    rr = _to_bool01(rr_raw) if isinstance(rr_raw, (bool, str)) else (_to_float(rr_raw, 0.0) or 0.0)
-    approval = _to_bool01(record.get("approval_pending"), 0.0)
-    overdue = _to_float(_first_present(record, "overdue_milestones"), 0.0) or 0.0
-    comp = _to_bool01(_first_present(record, "compensation_pending", "compensation_status"), 0.0)
-    env = any(
-        str(_first_present(record, field) or "").strip().lower() == "pending"
-        for field in ("env_clearance_status", "forest_clearance_status", "crz_status")
-    )
-
-    values = {
-        "land_area_ha": land,
-        "affected_families": families,
-        "pending_claims": claims,
-        "legal_cases": legal,
-        "doc_completeness_pct": doc,
-        "approval_pending": approval,
-        "rr_pending": rr,
-        "overdue_milestones": overdue,
-        "compensation_pending": 1.0 if env is False and comp else 0.0,
-        "env_clearance_pending": 1.0 if env else 0.0,
+    values: dict[str, float | None] = {
+        "land_area_ha": _to_float(_first_present(record, "land_area_ha", "land_required")),
+        "affected_families": _to_float(_first_present(record, "affected_families")),
+        "pending_claims": _to_float(_first_present(record, "pending_claims", "objection_count")),
+        "legal_cases": _to_float(_first_present(record, "legal_cases", "legal_case_count")),
+        "doc_completeness_pct": _to_float(_first_present(record, "doc_completeness_pct")),
+        "approval_pending": _to_bool01(record.get("approval_pending")),
+        "rr_pending": (
+            _to_float(_first_present(record, "rr_pending"))
+            if not isinstance(_first_present(record, "rr_pending"), str)
+            else _status_pending(_first_present(record, "rr_pending"))
+        ),
+        "overdue_milestones": _to_float(_first_present(record, "overdue_milestones")),
+        "compensation_pending": _to_bool01(
+            _first_present(record, "compensation_pending", "compensation_status")
+        ),
+        "env_clearance_pending": 1.0 if any(
+            _status_pending(record.get(field)) == 1.0
+            for field in ("env_clearance_status", "forest_clearance_status", "crz_status")
+            if record.get(field) not in (None, "")
+        ) else 0.0,
     }
-
-    missing = [k for k, v in values.items() if v is None]
+    missing = [name for name, value in values.items() if value is None]
     if missing:
         raise ValueError(f"Missing model features: {', '.join(missing)}")
-
-    return {k: float(v) for k, v in values.items()}
-
+    return {name: float(value) for name, value in values.items()}
 
 def validate_prediction_inputs(record: dict[str, Any]) -> list[str]:
-    missing: list[str] = []
-    for field in PREDICTION_REQUIRED_FIELDS:
-        value = record.get(field)
-        if value is None or value == "" or value == []:
-            missing.append(field)
-    return missing
-
+    return [
+        field for field in PREDICTION_REQUIRED_FIELDS
+        if record.get(field) is None or record.get(field) == ""
+    ]
 
 def build_feature_dataframe(records: list[dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(
-        [build_feature_vector(r) for r in records],
+        [build_feature_vector(record) for record in records],
         columns=FEATURE_COLUMNS,
     )
