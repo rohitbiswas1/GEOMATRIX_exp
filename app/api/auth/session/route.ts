@@ -11,20 +11,22 @@ const schema = z.object({
 export async function POST(request: Request) {
   try {
     const parsed = schema.safeParse(await request.json());
+
     if (!parsed.success) {
       return NextResponse.json({ error: 'Valid name and email are required.' }, { status: 400 });
     }
 
-    const session = await createSession({
-      email: parsed.data.email.toLowerCase(),
-      name: parsed.data.name,
-    });
+    const email = parsed.data.email.trim().toLowerCase();
+    const name = parsed.data.name.trim();
+    const role = parsed.data.role?.trim() || 'User';
+
+    const session = await createSession({ email, name });
 
     const response = NextResponse.json({
       success: true,
-      email: parsed.data.email.toLowerCase(),
-      name: parsed.data.name,
-      role: parsed.data.role ?? 'User',
+      email,
+      name,
+      role,
     });
 
     response.cookies.set('geomatrix_session', session, {
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Session creation failed.' },
+      { error: error instanceof Error ? error.message : 'Unable to create the login session.' },
       { status: 500 },
     );
   }
