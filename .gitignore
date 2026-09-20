@@ -1,7 +1,23 @@
-node_modules
-.next
+node_modules/
+.next/
 .env
-.env.local
-.env*.local
+.env.*
+!.env.example
 *.log
 .DS_Store
+*.pid
+tsconfig.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local database
+geomatrix_v2/geomatrix.db
+
+# Generated ML artifacts
+geomatrix_v2/model_artifacts/*.pkl
+geomatrix_v2/model_artifacts/active_model.json
+geomatrix_v2/model_artifacts/meta_*.json
