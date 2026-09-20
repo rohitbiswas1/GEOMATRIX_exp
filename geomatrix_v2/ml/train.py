@@ -91,7 +91,7 @@ def _regressor(algorithm: str):
 
 def _preprocessor() -> Pipeline:
     return Pipeline([
-        ("imputer", SimpleImputer(strategy="median", add_indicator=True, keep_empty_features=True)),
+        ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
         ("scaler", StandardScaler()),
     ])
 
@@ -169,8 +169,7 @@ def train_model(records: list[dict[str, Any]], algorithm: str = "RandomForest") 
     rmse = None
     if regression_available:
         regressor = _regressor(algorithm)
-        regressor.fit(preprocessor.transform(X_train), np.asarray([float(records[i][REGRESSION_LABEL]) for i in range(len(records)) if False]))
-        # Refit with the same deterministic split used for the classifier.
+        # Use the same deterministic split used for the classifier.
         train_indices, test_indices = train_test_split(
             np.arange(len(records)), test_size=0.2, random_state=42, stratify=y,
         )
@@ -218,7 +217,7 @@ def train_model(records: list[dict[str, Any]], algorithm: str = "RandomForest") 
         "real_label_source": True,
         "validation_status": "approved_dataset_only",
         "dataset_fingerprint": _dataset_fingerprint(records),
-        "imputation_strategy": "median_with_missing_indicators",
+        "imputation_strategy": "median",
         "regression_target_available": regression_available,
         "precision": precision,
         "recall": recall,
