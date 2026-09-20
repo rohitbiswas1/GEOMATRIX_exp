@@ -133,7 +133,7 @@ def trigger_training(
             roc_auc=meta["roc_auc"],
             rmse=meta["rmse"],
             accuracy=meta["accuracy"],
-            model_path=meta["clf_path"],
+            model_path=os.path.basename(meta["clf_path"]),
             model_version=meta["model_version"],
             notes="Validated on explicitly approved real historical records.",
             is_active=True,
