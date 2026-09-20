@@ -215,12 +215,10 @@ N22000463,MUMBAI AHMEDABAD HIGH SPEED RAIL PROJECT,Railways,NHSRCL,Multi-State,2
 
 
 def test_user_mospi_flash_report_csv_ingestion_and_training(tmp_path, monkeypatch):
-    db_path = tmp_path / "user_csv.db"
+    _, TestSessionLocal = _isolate_db(tmp_path, monkeypatch)
     model_dir = tmp_path / "model_artifacts"
     model_dir.mkdir()
-    monkeypatch.setattr("geomatrix_v2.database.DATABASE_URL", f"sqlite:///{db_path}")
     monkeypatch.setattr(train_module, "MODEL_DIR", str(model_dir))
-    _isolate_db(tmp_path, monkeypatch)
     client = TestClient(app)
 
     # Ingest as historical delay records for training
