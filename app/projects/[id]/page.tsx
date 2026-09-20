@@ -801,7 +801,7 @@ export default function ProjectRiskIntelligence() {
                 </span>
               </div>
               <div style={{ height: 10, background: 'var(--line)', borderRadius: 5, overflow: 'hidden' }}>
-                <div style={{ width: `${p.doc_completeness_pct != null ?? 0}%`, height: '100%', background: (p.doc_completeness_pct ?? 85) >= 80 ? 'var(--green)' : 'var(--amber)', borderRadius: 5, transition: 'width 0.6s ease' }} />
+                <div style={{ width: `${p.doc_completeness_pct ?? 0}%`, height: '100%', background: p.doc_completeness_pct != null && p.doc_completeness_pct >= 80 ? 'var(--green)' : 'var(--amber)', borderRadius: 5, transition: 'width 0.6s ease' }} />
               </div>
             </div>
           </div>
