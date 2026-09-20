@@ -80,8 +80,8 @@ def list_model_runs(db: Session = Depends(get_db)):
 
 @router.post("/train")
 def trigger_training(
-    algorithm: str = Query("RandomForest"),
     request: Request,
+    algorithm: str = Query("RandomForest"),
     db: Session = Depends(get_db),
 ):
     _require_runtime_training_enabled()
